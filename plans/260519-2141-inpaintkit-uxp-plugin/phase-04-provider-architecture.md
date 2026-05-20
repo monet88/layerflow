@@ -1,7 +1,7 @@
 ---
 title: "Phase 4: Provider Architecture + fal.ai"
 sprint: 1
-status: pending
+status: complete
 priority: P1
 effort: 3h
 depends_on: [phase-01]
