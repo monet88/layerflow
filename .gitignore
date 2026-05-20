@@ -1,1 +1,10 @@
 .tokensave
+node_modules/
+dist/
+*.ccx
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vite/
