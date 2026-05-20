@@ -2,11 +2,12 @@ import { useCallback } from 'react';
 import '@spectrum-web-components/textfield/sp-textfield.js';
 import '@spectrum-web-components/action-button/sp-action-button.js';
 import { useSpEvent } from '../hooks/use-sp-event';
+import type { RecentPrompt } from '../storage/settings-storage';
 
 interface PromptInputProps {
   value: string;
   onChange: (value: string) => void;
-  recentPrompts: string[];
+  recentPrompts: RecentPrompt[];
 }
 
 export function PromptInput({ value, onChange, recentPrompts }: PromptInputProps) {
@@ -30,14 +31,14 @@ export function PromptInput({ value, onChange, recentPrompts }: PromptInputProps
 
       {recentPrompts.length > 0 && (
         <div className="recent-prompts">
-          {recentPrompts.map((prompt, i) => (
+          {recentPrompts.map((entry, i) => (
             <sp-action-button
-              key={i}
+              key={`${entry.ts}-${i}`}
               size="s"
-              onClick={() => onChange(prompt)}
-              title={prompt}
+              onClick={() => onChange(entry.prompt)}
+              title={entry.prompt}
             >
-              {prompt.length > 28 ? prompt.slice(0, 28) + '…' : prompt}
+              {entry.prompt.length > 28 ? entry.prompt.slice(0, 28) + '…' : entry.prompt}
             </sp-action-button>
           ))}
         </div>

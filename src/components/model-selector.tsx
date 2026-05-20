@@ -3,13 +3,15 @@ import '@spectrum-web-components/picker/sp-picker.js';
 import '@spectrum-web-components/menu/sp-menu.js';
 import '@spectrum-web-components/menu/sp-menu-item.js';
 import { useSpEvent } from '../hooks/use-sp-event';
+import { listModels } from '../providers/model-registry';
 
-export const MODEL_OPTIONS = [
-  { value: 'flux-fill-pro', label: 'Flux Fill Pro (fal.ai) — inpainting', provider: 'falai' },
-  { value: 'nano-banana-2', label: 'Nano Banana 2 (fal.ai) — fast', provider: 'falai' },
-] as const;
+export const MODEL_OPTIONS = listModels().map((m) => ({
+  value: m.id,
+  label: `${m.label} — ${m.costHint}`,
+  provider: m.providerId,
+}));
 
-export type ModelValue = typeof MODEL_OPTIONS[number]['value'];
+export type ModelValue = string;
 
 interface ModelSelectorProps {
   value: ModelValue;
@@ -18,7 +20,7 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ value, onChange }: ModelSelectorProps) {
   const handleChange = useCallback((e: Event) => {
-    onChange((e.target as HTMLElement & { value: string }).value as ModelValue);
+    onChange((e.target as HTMLElement & { value: string }).value);
   }, [onChange]);
 
   const pickerRef = useSpEvent<EventTarget>('change', handleChange);

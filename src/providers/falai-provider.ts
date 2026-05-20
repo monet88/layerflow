@@ -10,7 +10,7 @@ import {
   ProviderId,
   ResultItem,
 } from './provider-interface';
-import { bytesToDataUri, invertMaskConvention } from '../services/image-processing';
+import { bytesToDataUri, detectPngOutputFormat, invertMaskConvention } from '../services/image-processing';
 import { checkedRequest, fetchBytes } from '../services/network-client';
 
 const FAL_RUN_BASE = 'https://fal.run';
@@ -64,6 +64,7 @@ interface FluxFillPayload {
   image_url: string;
   mask_url: string;
   output_count: number;
+  output_format?: 'png' | 'jpeg';
   safety_tolerance: number;
   seed?: number;
 }
@@ -170,11 +171,13 @@ export class FalAIProvider implements Provider {
 
   private async runFluxFill(options: InpaintOptions): Promise<ResultItem[]> {
     const invertedMask = invertMaskConvention(options.maskImage);
+    const outputFormat = detectPngOutputFormat(options.sourceImage) === 'jpg' ? 'jpeg' : 'png';
     const payload: FluxFillPayload = {
       prompt: options.prompt,
       image_url: bytesToDataUri(options.sourceImage),
       mask_url: bytesToDataUri(invertedMask),
       output_count: 1,
+      output_format: outputFormat,
       safety_tolerance: 4,
     };
     const response = await checkedRequest<FalResponse>(
@@ -243,6 +246,7 @@ export class FalAIProvider implements Provider {
         imageUrls.push(bytesToDataUri(ref));
       }
     }
+    const outputFormat = detectPngOutputFormat(options.sourceImage) === 'jpg' ? 'jpeg' : 'png';
     const payload: GptImage2EditPayload = {
       prompt: options.prompt,
       image_urls: imageUrls,
@@ -250,7 +254,7 @@ export class FalAIProvider implements Provider {
       image_size: imageSizeFromDimensions(options.width, options.height),
       quality: 'high',
       num_images: 1,
-      output_format: 'png',
+      output_format: outputFormat,
       input_fidelity: 'high',
     };
     const response = await checkedRequest<FalResponse>(

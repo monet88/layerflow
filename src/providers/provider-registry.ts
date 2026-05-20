@@ -1,7 +1,9 @@
 // Provider registry: maps a ProviderId (and optionally a model id) to a Provider instance.
-// Sprint 1 ships fal.ai only — Replicate (Sprint 2) and ChatGPT backend (Sprint 3) plug in later.
+// Sprint 1 ships fal.ai; Sprint 2 adds Replicate; Sprint 3 will add the ChatGPT backend.
 
-import { FALAI_MODELS, FalAIProvider } from './falai-provider';
+import { FalAIProvider } from './falai-provider';
+import { ReplicateProvider } from './replicate-provider';
+import { providerIdForModel } from './model-registry';
 import {
   Provider,
   ProviderCredentials,
@@ -21,11 +23,16 @@ export function getProvider(id: ProviderId, credentials: ProviderCredentials): P
       }
       return new FalAIProvider(key);
     }
-    case 'replicate':
-      throw new ProviderError(
-        'Replicate provider is not implemented yet (Sprint 2).',
-        'replicate',
-      );
+    case 'replicate': {
+      const key = credentials.replicate;
+      if (!key) {
+        throw new ProviderError(
+          'Replicate API key not configured. Open Settings and add your key.',
+          'replicate',
+        );
+      }
+      return new ReplicateProvider(key);
+    }
     case 'chatgpt-backend':
       throw new ProviderError(
         'ChatGPT backend provider is not implemented yet (Sprint 3).',
@@ -38,11 +45,8 @@ export function getProvider(id: ProviderId, credentials: ProviderCredentials): P
   }
 }
 
-// Returns the ProviderId responsible for a given model identifier.
-// Used by Phase 5 pipeline to route a UI-selected model to the right provider.
+// Returns the ProviderId responsible for a given UI model identifier.
+// Delegates to model-registry — single source of truth for model → provider mapping.
 export function providerForModel(modelId: string): ProviderId {
-  const falModels = Object.values(FALAI_MODELS) as string[];
-  if (falModels.includes(modelId)) return 'falai';
-  // Future: Replicate model prefixes (e.g., starting with org slug "/"), backend models, etc.
-  throw new ProviderError(`No provider registered for model: ${modelId}`, 'falai');
+  return providerIdForModel(modelId);
 }

@@ -1,7 +1,7 @@
 ---
 title: "Phase 6: Models, History, and Resolution Bucketing"
 sprint: 2
-status: pending
+status: complete
 priority: P2
 effort: 12h
 depends_on: [phase-05]

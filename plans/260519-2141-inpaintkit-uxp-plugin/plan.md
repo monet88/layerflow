@@ -24,8 +24,8 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 
 | Sprint | Goal | Duration | Est. | Status |
 |--------|------|----------|------|--------|
-| 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | in_progress |
-| 2 | More models + UX polish | 1 week | 12h | pending |
+| 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | complete |
+| 2 | More models + UX polish | 1 week | 12h | complete |
 | 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | pending |
 | 4 | Distribution + final polish | 0.5 week | 3h | pending |
 
@@ -41,13 +41,13 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 | 2 | Core UI | 5h | complete | [phase-02-core-ui.md](./phase-02-core-ui.md) |
 | 3 | Photoshop Integration | 8h | complete | [phase-03-photoshop-integration.md](./phase-03-photoshop-integration.md) |
 | 4 | Provider Architecture + fal.ai | 3h | complete | [phase-04-provider-architecture.md](./phase-04-provider-architecture.md) |
-| 5 | Generation Pipeline | 6h | pending | [phase-05-generation-pipeline.md](./phase-05-generation-pipeline.md) |
+| 5 | Generation Pipeline | 6h | complete | [phase-05-generation-pipeline.md](./phase-05-generation-pipeline.md) |
 
 ### Sprint 2: More Models + Polish
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
-| 6 | Models, History, Resolution Bucketing | 12h | pending | [phase-06-models-and-polish.md](./phase-06-models-and-polish.md) |
+| 6 | Models, History, Resolution Bucketing | 12h | complete | [phase-06-models-and-polish.md](./phase-06-models-and-polish.md) |
 
 ### Sprint 3: ChatGPT Backend + GPT Image 2
 
