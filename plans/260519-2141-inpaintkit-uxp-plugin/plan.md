@@ -39,7 +39,7 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |---|-------|------|--------|------|
 | 1 | Project Setup | 3h | complete | [phase-01-project-setup.md](./phase-01-project-setup.md) |
 | 2 | Core UI | 5h | complete | [phase-02-core-ui.md](./phase-02-core-ui.md) |
-| 3 | Photoshop Integration | 8h | pending | [phase-03-photoshop-integration.md](./phase-03-photoshop-integration.md) |
+| 3 | Photoshop Integration | 8h | complete | [phase-03-photoshop-integration.md](./phase-03-photoshop-integration.md) |
 | 4 | Provider Architecture + fal.ai | 3h | pending | [phase-04-provider-architecture.md](./phase-04-provider-architecture.md) |
 | 5 | Generation Pipeline | 6h | pending | [phase-05-generation-pipeline.md](./phase-05-generation-pipeline.md) |
 
