@@ -8,3 +8,10 @@ dist/
 .DS_Store
 Thumbs.db
 .vite/
+
+# Python ignore
+__pycache__/
+*.pyc
+venv/
+.pytest_cache/
+backend/data/
