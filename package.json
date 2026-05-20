@@ -9,6 +9,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@spectrum-web-components/action-button": "^0.37.0",
+    "@spectrum-web-components/button": "^0.37.0",
+    "@spectrum-web-components/divider": "^0.37.0",
+    "@spectrum-web-components/field-label": "^0.37.0",
+    "@spectrum-web-components/icons-workflow": "^0.37.0",
+    "@spectrum-web-components/menu": "^0.37.0",
+    "@spectrum-web-components/picker": "^0.37.0",
+    "@spectrum-web-components/progress-circle": "^0.37.0",
+    "@spectrum-web-components/textfield": "^0.37.0",
+    "@spectrum-web-components/theme": "^0.37.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
