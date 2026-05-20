@@ -53,7 +53,7 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
-| 7 | Backend MVP (Fork chatgpt2api) | 5h | pending | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
+| 7 | Backend MVP (Fork chatgpt2api) | 5h | complete | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
 | 8 | Backend ChatGPT Provider (Adapt) | 4h | pending | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
 | 9 | Plugin ChatGPT Integration | 7h | pending | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
 

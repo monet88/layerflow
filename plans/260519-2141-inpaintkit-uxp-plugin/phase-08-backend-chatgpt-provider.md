@@ -3,7 +3,7 @@ title: "Phase 8: Backend ChatGPT Provider (Adapt chatgpt2api core)"
 sprint: 3
 status: pending
 priority: P2
-effort: 4h
+effort: 5h
 depends_on: [phase-07]
 ---
 
@@ -76,6 +76,82 @@ Wire the extracted `chatgpt_core/` module (from Phase 7) into the InpaintKit bac
 - Backoff on 429/5xx: exponential, capped at 16s, with jitter
 - Terminal: find `async_task_type: "image_gen"` message with file_ids
 
+## Carry-over from Phase 7 Review
+
+These items were deferred during Phase 7 (per external code review verdict and internal review). They MUST be addressed before Phase 8 is marked `complete`.
+
+### CO-1: Wrap PoW solver in thread executor _(was: Phase 7 Finding #3, Medium)_
+
+**Problem.** `_pow_generate` in `chatgpt_core/pow_solver.py` is CPU-bound (up to 500k SHA-3 hashes, ~1-2s). Calling it directly inside the FastAPI request handler blocks the event loop and prevents serving other requests during a generation.
+
+**Action.**
+- In `ChatGPTWebProvider.edit_image`, wrap any synchronous `chatgpt_core` call that triggers PoW solving with `await asyncio.to_thread(...)`.
+- Alternative: refactor `OpenAIBackendAPI` methods used by the provider to be async-aware and offload only the hot loops via `loop.run_in_executor(None, ...)`.
+- Add a unit test that verifies `edit_image` does not block the loop (e.g. concurrent `asyncio.gather` of two edits completes in ~max(t1, t2) not t1+t2).
+
+**Acceptance.** Two concurrent `/v1/images/edits` requests do not serialize on PoW solving.
+
+### CO-2: ~~Block local-path inputs in `_decode_image_base64`~~ ✅ DONE
+
+> **Completed in Phase 7 post-review fix session (2026-05-20).** Local-filepath branch removed from `_decode_image_base64` and `_upload_image`. Function now only accepts base64 strings and data URIs. Path traversal vector closed. Remaining: add regression test during Phase 8 implementation.
+
+### CO-3: Set `ENV=production` default for production deployment _(was: Phase 7 Finding #4, Low)_
+
+**Problem.** `Settings._reject_default_app_key` only blocks the default `dev-app-key` when `ENV=production`. The shipped `docker-compose.yml` does not declare `ENV`, so a production operator who forgets to set it gets dev-mode laxity by default.
+
+**Action.**
+- Add `ENV=${ENV:-production}` to the `environment:` block in `backend/docker-compose.yml`.
+- Update `backend/.env.example`: add `ENV=development` with comment `# Set ENV=production for prod deploys; this enables strict APP_API_KEY validation.`
+- Update `backend/README.md` deployment section to call out the `ENV` variable as production-required.
+
+**Acceptance.** `docker compose up` with no `.env` overrides starts in production mode and refuses default `APP_API_KEY`.
+
+### CO-4: Translate Chinese error messages _(was: Phase 7 Review M4, Medium)_
+
+**Problem.** `chatgpt_core/image_poll.py:155-159` raises `ImagePollTimeoutError` with Chinese message (`ChatGPT 生图超时…`). This bubbles up to HTTP 500 detail — plugin users see Chinese in the UI.
+
+**Action.**
+- Translate all Chinese exception messages in `chatgpt_core/` to English.
+- Wire `ImagePollTimeoutError` through `app/core/errors.py` (`ProviderTimeoutError`) so user-facing message is controlled centrally.
+- Grep for remaining Chinese strings: `grep -rn '[\u4e00-\u9fff]' chatgpt_core/`.
+
+**Acceptance.** No Chinese text reaches HTTP response detail. All `chatgpt_core` exception messages in English.
+
+### CO-5: Split runtime vs dev dependencies _(was: Phase 7 Review M5, Medium)_
+
+**Problem.** `requirements.txt` includes `pytest`, `pytest-asyncio`. Dockerfile installs them → test framework lands in production image (unnecessary attack surface + image bloat).
+
+**Action.**
+- Split into `requirements.txt` (runtime only) and `requirements-dev.txt` (includes `-r requirements.txt` + test deps).
+- Update `Dockerfile`: `pip install -r requirements.txt` (no dev deps).
+- Update README: document `pip install -r requirements-dev.txt` for local development.
+
+**Acceptance.** `docker run <image> pip list` does not include `pytest`. Dev setup docs updated.
+
+### CO-6: Enable SQLite WAL mode _(was: Phase 7 Review C1, Critical)_
+
+**Problem.** `app/db/sqlite.py` opens fresh connections without `PRAGMA journal_mode=WAL`. Under FastAPI threadpool pressure, concurrent writers contend on the default rollback journal. Currently masked because each method opens/closes its own connection.
+
+**Action.**
+- Add `PRAGMA journal_mode=WAL` and `PRAGMA busy_timeout=5000` after each `sqlite3.connect()` call in `sqlite.py`.
+- Keep `check_same_thread=False` since connections are not pooled/shared across threads.
+
+**Acceptance.** `PRAGMA journal_mode` returns `wal` when queried on an active connection.
+
+### CO-7: Add API rate limiting _(was: Phase 7 Review A11, Medium)_
+
+**Problem.** `POST /auth/chatgpt/session` and `POST /v1/images/edits` accept unbounded request rate. A misbehaving plugin instance can DoS the DB or exhaust the upstream ChatGPT account quota.
+
+**Action.**
+- Add `slowapi` dependency to `requirements.txt`.
+- Configure rate limiter in `app/core/rate_limit.py`: `10/minute` for `/auth/chatgpt/session`, `5/minute` for `/v1/images/edits` (per `X-User-Id`).
+- Wire limiter into `main.py` via `app.state.limiter`.
+- Add env vars `RATE_LIMIT_AUTH` and `RATE_LIMIT_IMAGES` to `Settings` for ops tunability.
+
+**Acceptance.** 6th `/v1/images/edits` call within 60s returns HTTP 429. Rate limits configurable via env.
+
+---
+
 ## Requirements
 
 **Functional:**
@@ -94,21 +170,31 @@ Wire the extracted `chatgpt_core/` module (from Phase 7) into the InpaintKit bac
 
 ## Implementation Steps
 
-1. Create `app/providers/chatgpt_web.py` — ChatGPTWebProvider class
-2. Adapt chatgpt_core's `OpenAIBackendAPI` initialization:
+> Carry-over tasks (CO-1 through CO-7) MUST be folded into the steps below, not skipped.
+> CO-2 was completed in Phase 7 post-review session — only regression test remains.
+
+1. **CO-2 regression test** — add test that `_decode_image_base64("/etc/passwd")` raises (path branch already removed).
+2. **CO-3** — set `ENV=${ENV:-production}` default in `backend/docker-compose.yml`; update `.env.example` and `README.md` deployment notes.
+3. **CO-5** — split `requirements.txt` → runtime-only; create `requirements-dev.txt` with test deps. Update `Dockerfile`.
+4. **CO-6** — add `PRAGMA journal_mode=WAL` + `PRAGMA busy_timeout=5000` in `app/db/sqlite.py`.
+5. **CO-4** — translate all Chinese strings in `chatgpt_core/`. Wire `ImagePollTimeoutError` → `app/core/errors.py:ProviderTimeoutError`.
+6. Create `app/providers/chatgpt_web.py` — ChatGPTWebProvider class
+7. Adapt chatgpt_core's `OpenAIBackendAPI` initialization:
    - Accept `access_token` as constructor arg
    - Set `base_url` from config (default: `https://chatgpt.com`)
    - Initialize curl-cffi session with Chrome fingerprint
-3. Implement `edit_image()`:
+8. Implement `edit_image()`:
    - Call `_stream_picture_conversation(prompt, model, images=[source_image, mask])` if mask provided
    - Call `_stream_picture_conversation(prompt, model, images=[source_image])` if no mask
    - Parse SSE stream for conversation_id
    - Poll for results
    - Download and return image bytes
-4. Implement error mapping (see table below)
-5. Wire provider into `image_edit_service.py` (IMAGE_PROVIDER=chatgpt_web)
-6. Add integration test stub (requires real token — manual verification)
-7. Document manual test procedure in README
+9. **CO-1** — wrap any blocking `chatgpt_core` call (PoW, sync HTTP, polling loop) in `asyncio.to_thread` or `loop.run_in_executor`. Add concurrency test (`asyncio.gather` of two edits).
+10. **CO-7** — add `slowapi` rate limiter; configure per-endpoint limits in `app/core/rate_limit.py`; wire into `main.py`.
+11. Implement error mapping (see table below)
+12. Wire provider into `image_edit_service.py` (IMAGE_PROVIDER=chatgpt_web)
+13. Add integration test stub (requires real token — manual verification)
+14. Document manual test procedure in README
 
 ## Error Mapping
 
@@ -124,6 +210,13 @@ Wire the extracted `chatgpt_core/` module (from Phase 7) into the InpaintKit bac
 
 ## Success Criteria
 
+- [ ] **CO-1**: Concurrent `/v1/images/edits` requests do not serialize on PoW solver
+- [x] **CO-2**: `_decode_image_base64` rejects local filesystem paths _(done in Phase 7 post-review)_; regression test added
+- [ ] **CO-3**: `docker compose up` defaults to `ENV=production` and refuses default `APP_API_KEY`
+- [ ] **CO-4**: No Chinese text in any HTTP response detail; all `chatgpt_core` exceptions in English
+- [ ] **CO-5**: Production Docker image does not contain `pytest`; `requirements-dev.txt` created
+- [ ] **CO-6**: `PRAGMA journal_mode` returns `wal` on active SQLite connection
+- [ ] **CO-7**: 6th `/v1/images/edits` within 60s returns HTTP 429; rate limits configurable via env
 - [ ] IMAGE_PROVIDER=chatgpt_web loads without import errors
 - [ ] chatgpt_core initializes with access_token without crashing
 - [ ] Provider returns structured error when access_token is invalid (mock 401)
