@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "fal-image-edit": {
+      "source": "nexu-io/open-design",
+      "sourceType": "github",
+      "skillPath": "skills/fal-image-edit/SKILL.md",
+      "computedHash": "c148709d37318c49055e7ff24bdb444802e93daa9e00301ffa90f1e335d41919"
+    },
+    "fastapi-python": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "fastapi-python/SKILL.md",
+      "computedHash": "1d7346210a6690d2faeb089f074c0dc20a7056c2c83ac1062a11c1b73158be72"
+    },
+    "replicate": {
+      "source": "nexu-io/open-design",
+      "sourceType": "github",
+      "skillPath": "skills/replicate/SKILL.md",
+      "computedHash": "2cd3305970b091d0c0c72805dcf1198617251a100caa2e64c7b4ea2211995b21"
+    }
+  }
+}
