@@ -1,0 +1,104 @@
+from typing import Optional
+import logging
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from app.api.deps import verify_app_api_key, get_user_id
+from app.core.config import settings
+from app.services.image_edit_service import ImageEditService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+image_service = ImageEditService()
+
+
+async def _read_upload_with_budget(upload: UploadFile, max_bytes: int) -> bytes:
+    """Read an upload file in chunks, aborting immediately when budget exceeded.
+
+    Prevents DoS via large uploads that would fill /tmp before a post-read
+    size check fires. Starlette spools to disk after 1MB — this limits how
+    much disk is consumed.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(64 * 1024)  # 64KB chunks
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File exceeds maximum allowed size of {max_bytes // (1024 * 1024)}MB.",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    if not data:
+        return data
+    return data
+
+@router.post("/v1/images/edits", dependencies=[Depends(verify_app_api_key)])
+async def edit_image_endpoint(
+    image: UploadFile = File(...),
+    mask: Optional[UploadFile] = File(None),
+    prompt: str = Form(...),
+    model: str = Form("gpt-image-2"),
+    n: int = Form(1),
+    size: str = Form("1024x1024"),
+    user_id: str = Depends(get_user_id),
+):
+    """OpenAI-compatible image edits endpoint.
+
+    Accepts multipart/form-data containing image, optional mask, prompt, and parameters.
+    """
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+
+    # Streaming read with budget — reject before buffering entire payload (A4 fix)
+    try:
+        image_bytes = await _read_upload_with_budget(image, max_bytes)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to read image file",
+        )
+
+    mask_bytes = None
+    if mask is not None:
+        try:
+            mask_bytes = await _read_upload_with_budget(mask, max_bytes)
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to read mask file",
+            )
+
+    try:
+        result = await image_service.edit_image(
+            image_bytes=image_bytes,
+            mask_bytes=mask_bytes,
+            prompt=prompt,
+            user_id=user_id,
+            model=model,
+            n=n,
+            size=size,
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(exc)
+        )
+    except Exception as exc:
+        logger.exception("Image generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Image generation failed. Please try again later.",
+        )

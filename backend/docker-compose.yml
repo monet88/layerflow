@@ -1,0 +1,17 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_API_KEY=${APP_API_KEY:-dev-app-key}
+      - IMAGE_PROVIDER=${IMAGE_PROVIDER:-mock}
+      - SQLITE_PATH=/app/data/app.sqlite
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-20}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CHATGPT_PROXY=${CHATGPT_PROXY}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-app://uxp-internal,http://localhost:8000}
+    volumes:
+      - ./data:/app/data
+    restart: always
