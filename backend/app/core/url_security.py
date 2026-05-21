@@ -1,11 +1,23 @@
 import socket
 import ipaddress
 import logging
+from typing import Tuple, List
 from urllib.parse import urlparse
 
 logger = logging.getLogger("app.core.url_security")
 
-from typing import Tuple, List
+_EXTRA_DENIED_NETWORKS = [
+    ipaddress.IPv4Network("100.64.0.0/10"),
+    ipaddress.IPv4Network("192.0.0.0/24"),
+]
+
+
+def _is_denied(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if not ip.is_global:
+        return True
+    if isinstance(ip, ipaddress.IPv4Address):
+        return any(ip in net for net in _EXTRA_DENIED_NETWORKS)
+    return False
 
 def validate_and_resolve_url(url: str) -> Tuple[bool, List[str]]:
     """Validate that a URL uses http/https, does not resolve to local/internal IP addresses,
@@ -43,7 +55,7 @@ def validate_and_resolve_url(url: str) -> Tuple[bool, List[str]]:
                     elif ip.packed[:12] == b'\x00' * 12:
                         ip = ipaddress.IPv4Address(ip.packed[12:])
 
-                if not ip.is_global:
+                if _is_denied(ip):
                     logger.warning("SSRF block: Unsafe or non-global IP detected for %s: %s", hostname, ip_str)
                     return False, []
             except ValueError:

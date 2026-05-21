@@ -114,10 +114,11 @@ def test_download_first_strips_auth_header():
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.iter_content = lambda *args, **kwargs: [b"downloaded_bytes"]
-    
+
     mock_session = MagicMock()
     mock_session.__enter__.return_value = mock_session
     mock_session.get.return_value = mock_response
+    mock_session.headers = {}
 
     provider.api_client.url_validator = lambda url: (True, ["1.2.3.4"])
 
@@ -128,6 +129,7 @@ def test_download_first_strips_auth_header():
     kwargs = mock_session.get.call_args[1]
     headers = kwargs.get("headers", {})
     assert "Authorization" not in headers
+    assert "Authorization" not in mock_session.headers
     assert provider.api_client.session.headers["Authorization"] == "Bearer test_token"
 
 def test_download_first_keeps_auth_header_for_internal_url():
@@ -643,7 +645,7 @@ def test_upload_image_empty_resolved_ips_blocked():
     )
     client.session.post = lambda url, **kwargs: MagicMock(status_code=200, json=lambda: {"upload_url": "https://example.com/upload", "file_id": "file-123"})
     client._decode_image_base64 = lambda img: b"\x89PNG\r\n\x1a\n"
-    
+
     from PIL import Image
     mock_img = MagicMock()
     mock_img.size = (10, 10)
@@ -651,3 +653,126 @@ def test_upload_image_empty_resolved_ips_blocked():
     with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"):
         with pytest.raises(ValueError, match="SSRF block: Upload URL is not safe"):
             client._upload_image("base64_data")
+
+
+class TestSSRFDeniedNetworks:
+    """Test SSRF blocking for specific dangerous IP ranges."""
+
+    @pytest.mark.parametrize("ip,should_block", [
+        ("0.0.0.0", True),
+        ("100.64.0.1", True),
+        ("100.127.255.254", True),
+        ("fe80::1", True),
+        ("fd00::1", True),
+        ("8.8.8.8", False),
+        ("1.1.1.1", False),
+    ])
+    def test_ssrf_denied_ips(self, ip, should_block):
+        from app.core.url_security import validate_and_resolve_url
+        import socket
+
+        family = socket.AF_INET6 if ":" in ip else socket.AF_INET
+        sockaddr = (ip, 0, 0, 0) if family == socket.AF_INET6 else (ip, 0)
+
+        with patch("socket.getaddrinfo") as mock_getaddrinfo:
+            mock_getaddrinfo.return_value = [
+                (family, socket.SOCK_STREAM, 6, "", sockaddr)
+            ]
+            safe, resolved = validate_and_resolve_url("https://example.com/test")
+            if should_block:
+                assert not safe
+                assert resolved == []
+            else:
+                assert safe
+                assert ip in resolved
+
+    def test_cgnat_range_blocked_explicitly(self):
+        """Verify 100.64.0.0/10 is blocked regardless of Python is_global behavior."""
+        from app.core.url_security import _is_denied
+        import ipaddress
+
+        assert _is_denied(ipaddress.IPv4Address("100.64.0.1"))
+        assert _is_denied(ipaddress.IPv4Address("100.100.100.100"))
+        assert _is_denied(ipaddress.IPv4Address("100.127.255.254"))
+        assert not _is_denied(ipaddress.IPv4Address("100.128.0.1"))
+
+    def test_ietf_protocol_range_blocked(self):
+        """Verify 192.0.0.0/24 is blocked explicitly."""
+        from app.core.url_security import _is_denied
+        import ipaddress
+
+        assert _is_denied(ipaddress.IPv4Address("192.0.0.1"))
+        assert _is_denied(ipaddress.IPv4Address("192.0.0.254"))
+        assert not _is_denied(ipaddress.IPv4Address("192.0.1.1"))
+
+
+class TestDownloadTimeout:
+    """Test wall-clock timeout in _read_response_stream."""
+
+    def test_download_timeout_triggers(self):
+        provider = ChatGPTWebProvider(access_token="test_token")
+
+        def slow_iter(*args, **kwargs):
+            yield b"a" * 1024
+            yield b"b" * 1024
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.iter_content = slow_iter
+
+        with patch("time.monotonic", side_effect=[0.0, 0.0, 61.0]):
+            with pytest.raises(RuntimeError, match="Download timed out"):
+                provider._read_response_stream(mock_response)
+
+    def test_download_completes_within_timeout(self):
+        provider = ChatGPTWebProvider(access_token="test_token")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.iter_content = lambda *args, **kwargs: [b"chunk1", b"chunk2"]
+
+        with patch("time.monotonic", side_effect=[0.0, 1.0, 2.0]):
+            result = provider._read_response_stream(mock_response)
+        assert result == b"chunk1chunk2"
+
+
+class TestResolveImageUrlsCap:
+    """Test that _resolve_image_urls caps file_ids and sediment_ids."""
+
+    def test_file_ids_capped_at_10(self):
+        client = OpenAIBackendAPI(access_token="test_token")
+        client._bootstrap = MagicMock()
+
+        call_count = []
+        original_get_file = client._get_file_download_url
+
+        def counting_get_file(file_id):
+            call_count.append(file_id)
+            return f"https://example.com/{file_id}"
+
+        client._get_file_download_url = counting_get_file
+
+        file_ids = [f"file_{i}" for i in range(25)]
+        urls = client._resolve_image_urls("conv123", file_ids, [])
+
+        assert len(call_count) == 10
+        assert len(urls) == 10
+
+    def test_sediment_ids_capped_at_10(self):
+        client = OpenAIBackendAPI(access_token="test_token")
+        client._bootstrap = MagicMock()
+        client._get_file_download_url = MagicMock(return_value="")
+
+        call_count = []
+
+        def counting_get_attachment(conv_id, sed_id):
+            call_count.append(sed_id)
+            return f"https://example.com/{sed_id}"
+
+        client._get_attachment_download_url = counting_get_attachment
+
+        sediment_ids = [f"sed_{i}" for i in range(25)]
+        urls = client._resolve_image_urls("conv123", [], sediment_ids)
+
+        assert len(call_count) == 10
+        assert len(urls) == 10

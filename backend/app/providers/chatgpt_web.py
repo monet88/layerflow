@@ -209,13 +209,20 @@ class ChatGPTWebProvider(BaseImageProvider):
                 except Exception:
                     pass
 
+    _DOWNLOAD_TIMEOUT_SECS = 60.0
+
     def _read_response_stream(self, response: Any) -> bytes:
         if not (200 <= response.status_code < 300):
             return b""
         chunks = []
         total_bytes = 0
         max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+        deadline = time.monotonic() + self._DOWNLOAD_TIMEOUT_SECS
         for chunk in response.iter_content(chunk_size=65536):
+            if time.monotonic() > deadline:
+                raise RuntimeError(
+                    f"Download timed out after {self._DOWNLOAD_TIMEOUT_SECS}s"
+                )
             total_bytes += len(chunk)
             if total_bytes > max_bytes:
                 raise RuntimeError(

@@ -23,8 +23,12 @@ def _get_attachment_download_url(self, conversation_id: str, attachment_id: str)
     data = response.json()
     return data.get("download_url") or data.get("url") or ""
 
+_MAX_RESOLVE_IDS = 10
+
 def _resolve_image_urls(self, conversation_id: str, file_ids: list[str], sediment_ids: list[str]) -> list[str]:
     """Convert image result ids (file or sediment) into downloadable URLs."""
+    file_ids = file_ids[:_MAX_RESOLVE_IDS]
+    sediment_ids = sediment_ids[:_MAX_RESOLVE_IDS]
     urls = []
     skip_patterns = {"file_upload"}
     for file_id in file_ids:
