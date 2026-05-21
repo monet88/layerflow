@@ -18,6 +18,7 @@ from typing import Any, Dict, Optional
 
 from PIL import Image
 
+from app.core.config import settings
 from app.core.errors import (
     ProviderAuthError,
     ProviderError,
@@ -71,8 +72,6 @@ class ChatGPTWebProvider(BaseImageProvider):
                 "ChatGPT Web provider does not support n > 1"
             )
 
-        from app.core.config import settings
-
         poll_timeout = float(
             getattr(settings, "CHATGPT_POLL_TIMEOUT", self.DEFAULT_POLL_TIMEOUT_SECS)
         )
@@ -124,7 +123,7 @@ class ChatGPTWebProvider(BaseImageProvider):
                 "created": int(time.time()),
                 "data": [{"b64_json": base64.b64encode(png_bytes).decode("ascii")}],
             }
-        except (ProviderError, ProviderTimeoutError):
+        except ProviderError:
             raise
         except InvalidAccessTokenError as exc:
             raise ProviderAuthError(str(exc)) from exc
@@ -138,9 +137,19 @@ class ChatGPTWebProvider(BaseImageProvider):
             logger.exception("ChatGPT provider flow failed")
             raise ProviderError(f"ChatGPT image edit failed: {exc}") from exc
 
-    # Cap PIL pixel budget to prevent decompression bombs that bypass the
-    # 20 MB upload budget.  4096×4096 = ~16.7M pixels (~67 MB RGBA RAM).
     _MAX_IMAGE_PIXELS = 4096 * 4096
+
+    @staticmethod
+    def _open_image_safe(data: bytes) -> Image.Image:
+        """Open image with pixel budget check without mutating the global."""
+        img = Image.open(io.BytesIO(data))
+        pixels = img.size[0] * img.size[1]
+        if pixels > ChatGPTWebProvider._MAX_IMAGE_PIXELS:
+            raise ValueError(
+                f"Image too large: {pixels} pixels exceeds "
+                f"{ChatGPTWebProvider._MAX_IMAGE_PIXELS} limit"
+            )
+        return img.convert("RGBA")
 
     @staticmethod
     def _composite_mask(image_bytes: bytes, mask_bytes: Optional[bytes]) -> bytes:
@@ -150,25 +159,20 @@ class ChatGPTWebProvider(BaseImageProvider):
         what ChatGPT Web expects on the inpaint upload (transparent regions
         are repainted). When no mask is supplied we return the source as-is.
         """
-        saved = Image.MAX_IMAGE_PIXELS
-        Image.MAX_IMAGE_PIXELS = ChatGPTWebProvider._MAX_IMAGE_PIXELS
-        try:
-            source = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-            if not mask_bytes:
-                buf = io.BytesIO()
-                source.save(buf, format="PNG")
-                return buf.getvalue()
-
-            mask = Image.open(io.BytesIO(mask_bytes)).convert("RGBA")
-            if mask.size != source.size:
-                mask = mask.resize(source.size, Image.NEAREST)
-            alpha = mask.split()[3]
-            source.putalpha(alpha)
+        source = ChatGPTWebProvider._open_image_safe(image_bytes)
+        if not mask_bytes:
             buf = io.BytesIO()
             source.save(buf, format="PNG")
             return buf.getvalue()
-        finally:
-            Image.MAX_IMAGE_PIXELS = saved
+
+        mask = ChatGPTWebProvider._open_image_safe(mask_bytes)
+        if mask.size != source.size:
+            mask = mask.resize(source.size, Image.NEAREST)
+        alpha = mask.split()[3]
+        source.putalpha(alpha)
+        buf = io.BytesIO()
+        source.save(buf, format="PNG")
+        return buf.getvalue()
 
     @staticmethod
     def _extract_conversation_id(sse_response) -> str:

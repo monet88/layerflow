@@ -105,7 +105,7 @@ class ProviderReconnectRequiredError(ProviderError):
         )
 
 
-class ProviderTimeoutError(AppError):
+class ProviderTimeoutError(ProviderError):
     """Upstream AI provider timed out."""
 
     error_code: str = PROVIDER_TIMEOUT
@@ -113,11 +113,12 @@ class ProviderTimeoutError(AppError):
     def __init__(self, message: str, timeout_secs: float = 0) -> None:
         super().__init__(
             message,
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             user_message=(
                 f"Image generation timed out after {int(timeout_secs)}s. "
                 "Please try again."
             ),
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            error_code=PROVIDER_TIMEOUT,
         )
         self.timeout_secs = timeout_secs
 

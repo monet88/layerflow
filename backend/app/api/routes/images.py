@@ -33,10 +33,7 @@ async def _read_upload_with_budget(upload: UploadFile, max_bytes: int) -> bytes:
                 detail=f"File exceeds maximum allowed size of {max_bytes // (1024 * 1024)}MB.",
             )
         chunks.append(chunk)
-    data = b"".join(chunks)
-    if not data:
-        return data
-    return data
+    return b"".join(chunks)
 
 @router.post("/v1/images/edits", dependencies=[Depends(verify_app_api_key)])
 @limiter.limit(settings.RATE_LIMIT_IMAGES)

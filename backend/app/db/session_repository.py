@@ -1,11 +1,10 @@
-import sqlite3
 from typing import Optional
 from app.db.sqlite import get_db_connection
 
+
 class SessionRepository:
     def save_session(self, user_id: str, encrypted_token: str) -> None:
-        conn = get_db_connection()
-        try:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -18,12 +17,9 @@ class SessionRepository:
                 (user_id, encrypted_token),
             )
             conn.commit()
-        finally:
-            conn.close()
 
     def get_session(self, user_id: str) -> Optional[str]:
-        conn = get_db_connection()
-        try:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT encrypted_access_token FROM user_sessions WHERE user_id = ?",
@@ -33,14 +29,9 @@ class SessionRepository:
             if row:
                 return row["encrypted_access_token"]
             return None
-        finally:
-            conn.close()
 
     def delete_session(self, user_id: str) -> None:
-        conn = get_db_connection()
-        try:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM user_sessions WHERE user_id = ?", (user_id,))
             conn.commit()
-        finally:
-            conn.close()
