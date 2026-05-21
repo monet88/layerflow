@@ -235,3 +235,31 @@ These items were deferred during Phase 7 (per external code review verdict and i
 | curl-cffi TLS fingerprint outdated | Pin version; test monthly against chatgpt.com |
 | Rate limits vary by subscription tier | Document in README; suggest Plus/Pro for reliability |
 | Image too large causes Azure upload timeout | Resize to max 4096px before upload |
+
+## Deferred Findings (from Phase 8 Code Review)
+
+Items below are accepted risks for MVP. Address in future phases when scaling.
+
+### DEFER-1: SSE stream resource leak on exception path
+
+**Context:** `chatgpt_web.py` — if `_poll_image_results` raises a non-timeout exception after SSE stream is closed, the `api_client.session` (curl-cffi) may hold open connections from the poll request. No explicit cleanup of session on error path.
+
+**Risk:** Low — curl-cffi manages connection lifecycle internally; single-process deployment limits blast radius.
+
+**Action (Phase 10+):** Add explicit `session.close()` in a `finally` block or use context manager pattern for the provider lifecycle.
+
+### DEFER-2: No content-type validation on image upload
+
+**Context:** `images.py` endpoint accepts any `UploadFile` without validating MIME type or magic bytes. A non-image file (e.g. crafted zip) would be buffered fully before PIL rejects it in the provider thread.
+
+**Risk:** Low — PIL raises on invalid input (no code execution); 20MB budget limits resource consumption. No security vulnerability, just wasted compute.
+
+**Action (Phase 10+):** Add PNG/JPEG magic-byte check in `_read_upload_with_budget` before passing to provider. Reject early with 415 Unsupported Media Type.
+
+### DEFER-3: `_download_first` trusts URLs from ChatGPT API response
+
+**Context:** `chatgpt_web.py:176` downloads from URLs returned by ChatGPT's conversation API using the authenticated session. If the polling response were MITM'd, the provider would fetch from an attacker-controlled URL with session cookies.
+
+**Risk:** Very low — requires MITM on TLS connection to `chatgpt.com`; out of threat model for self-hosted MVP behind HTTPS.
+
+**Action (Phase 10+):** Validate that resolved URLs match expected ChatGPT/Azure Blob domains before downloading.

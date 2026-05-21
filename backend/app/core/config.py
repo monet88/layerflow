@@ -1,8 +1,7 @@
-import os
 import binascii
 from typing import Optional
 from cryptography.fernet import Fernet, InvalidToken
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -40,14 +39,12 @@ class Settings(BaseSettings):
             raise ValueError(f"ENCRYPTION_KEY is not a valid Fernet key: {exc}") from exc
         return v
 
-    @field_validator("APP_API_KEY")
-    @classmethod
-    def _reject_default_app_key(cls, v: str) -> str:
-        v = str(v or "").strip()
-        env = os.getenv("ENV", "development")
-        if not v or (v == "dev-app-key" and env == "production"):
+    @model_validator(mode="after")
+    def _reject_default_app_key(self) -> "Settings":
+        v = (self.APP_API_KEY or "").strip()
+        if not v or (v == "dev-app-key" and self.ENV == "production"):
             raise ValueError("APP_API_KEY must be set to a non-default value in production")
-        return v
+        return self
 
 # We allow lazy loading or loading at module level. Module level is standard for FastAPI config.
 # To ensure tests can run without failure if environment is not set, we can load settings.

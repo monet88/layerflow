@@ -1,8 +1,9 @@
-"""Per-user rate limiter using slowapi.
+"""Per-IP rate limiter using slowapi.
 
-Keyed on the X-User-Id header (the same value that authenticates the user
-to the backend) rather than client IP, since multiple plugin installs may
-share an egress IP behind NAT but each has a distinct user_id.
+Keyed on client IP rather than X-User-Id because the rate limiter fires
+before authentication middleware validates the header — an attacker could
+rotate X-User-Id values to bypass per-user buckets. IP-based keying is
+safe for the single-process MVP deployment.
 """
 
 from fastapi import Request
@@ -14,15 +15,7 @@ from starlette.responses import JSONResponse
 from app.core.errors import PROVIDER_RATE_LIMITED
 
 
-def _user_id_key(request: Request) -> str:
-    """Rate-limit key: X-User-Id when present, otherwise client IP."""
-    user_id = request.headers.get("X-User-Id")
-    if user_id:
-        return f"user:{user_id}"
-    return f"ip:{get_remote_address(request)}"
-
-
-limiter = Limiter(key_func=_user_id_key)
+limiter = Limiter(key_func=get_remote_address)
 
 
 def rate_limit_exceeded_handler(

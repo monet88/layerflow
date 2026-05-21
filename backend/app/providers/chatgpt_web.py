@@ -80,11 +80,12 @@ class ChatGPTWebProvider(BaseImageProvider):
     ) -> Dict[str, Any]:
         """Blocking ChatGPT pipeline. Must be called via asyncio.to_thread."""
         try:
+            self.api_client._bootstrap()
+
             composed = self._composite_mask(image_bytes, mask_bytes)
             image_b64 = base64.b64encode(composed).decode("ascii")
 
             upload = self.api_client._upload_image(image_b64, file_name="source.png")
-            self.api_client._bootstrap()
             requirements = self.api_client._get_chat_requirements()
             conduit = self.api_client._prepare_image_conversation(prompt, requirements, model)
             sse_response = self.api_client._start_image_generation(

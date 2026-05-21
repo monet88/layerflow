@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 PROVIDER_ERROR_CODE = "provider_error"
 PROVIDER_AUTH_FAILED = "provider_auth_failed"
 PROVIDER_RATE_LIMITED = "provider_rate_limited"
+PROVIDER_TIMEOUT = "provider_timeout"
 PROVIDER_RECONNECT_REQUIRED = "provider_reconnect_required"
 PROVIDER_INTERNAL_ERROR = "internal_error"
 
@@ -107,7 +108,7 @@ class ProviderReconnectRequiredError(ProviderError):
 class ProviderTimeoutError(AppError):
     """Upstream AI provider timed out."""
 
-    error_code: str = PROVIDER_RATE_LIMITED
+    error_code: str = PROVIDER_TIMEOUT
 
     def __init__(self, message: str, timeout_secs: float = 0) -> None:
         super().__init__(
