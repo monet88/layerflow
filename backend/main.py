@@ -22,6 +22,36 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
+# Custom ASGI Middleware to check Content-Length early
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.responses import Response
+
+class ContentLengthLimitMiddleware:
+    def __init__(self, app: ASGIApp, max_content_length: int) -> None:
+        self.app = app
+        self.max_content_length = max_content_length
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] in ("POST", "PUT", "PATCH"):
+            content_length = None
+            for key, val in scope.get("headers", []):
+                if key.lower() == b"content-length":
+                    try:
+                        content_length = int(val)
+                    except ValueError:
+                        pass
+                    break
+
+            if content_length is not None and content_length > self.max_content_length:
+                response = Response("Request Entity Too Large", status_code=413)
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)
+
+max_bytes_limit = settings.MAX_UPLOAD_MB * 1024 * 1024 + (2 * 1024 * 1024)
+app.add_middleware(ContentLengthLimitMiddleware, max_content_length=max_bytes_limit)
+
 # CORS middleware setup
 app.add_middleware(
     CORSMiddleware,

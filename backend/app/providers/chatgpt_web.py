@@ -34,6 +34,7 @@ from chatgpt_core.errors import (
     UpstreamHTTPError,
 )
 from chatgpt_core.sse_parser import iter_sse_payloads
+from app.core.url_security import is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -96,52 +97,46 @@ class ChatGPTWebProvider(BaseImageProvider):
     ) -> Dict[str, Any]:
         """Blocking ChatGPT pipeline. Must be called via asyncio.to_thread."""
         try:
-            try:
-                self.api_client._bootstrap()
+            self.api_client._bootstrap()
 
-                composed = self._composite_mask(image_bytes, mask_bytes)
-                image_b64 = base64.b64encode(composed).decode("ascii")
+            composed = self._composite_mask(image_bytes, mask_bytes)
+            image_b64 = base64.b64encode(composed).decode("ascii")
 
-                upload = self.api_client._upload_image(image_b64, file_name="source.png")
-                requirements = self.api_client._get_chat_requirements()
-                conduit = self.api_client._prepare_image_conversation(prompt, requirements, model)
-                sse_response = self.api_client._start_image_generation(
-                    prompt, requirements, conduit, model, references=[upload]
-                )
-                conversation_id = self._extract_conversation_id(sse_response)
-                if not conversation_id:
-                    raise ProviderError("ChatGPT did not return a conversation id")
+            upload = self.api_client._upload_image(image_b64, file_name="source.png")
+            requirements = self.api_client._get_chat_requirements()
+            conduit = self.api_client._prepare_image_conversation(prompt, requirements, model)
+            sse_response = self.api_client._start_image_generation(
+                prompt, requirements, conduit, model, references=[upload]
+            )
+            conversation_id = self._extract_conversation_id(sse_response)
+            if not conversation_id:
+                raise ProviderError("ChatGPT did not return a conversation id")
 
-                file_ids, sediment_ids = self.api_client._poll_image_results(
-                    conversation_id, timeout_secs=poll_timeout
-                )
-                urls = self.api_client._resolve_image_urls(conversation_id, file_ids, sediment_ids)
-                if not urls:
-                    raise ProviderError("ChatGPT returned no downloadable image urls")
+            file_ids, sediment_ids = self.api_client._poll_image_results(
+                conversation_id, timeout_secs=poll_timeout
+            )
+            urls = self.api_client._resolve_image_urls(conversation_id, file_ids, sediment_ids)
+            if not urls:
+                raise ProviderError("ChatGPT returned no downloadable image urls")
 
-                png_bytes = self._download_first(urls)
-                return {
-                    "created": int(time.time()),
-                    "data": [{"b64_json": base64.b64encode(png_bytes).decode("ascii")}],
-                }
-            except ProviderError:
-                raise
-            except InvalidAccessTokenError as exc:
-                raise ProviderAuthError(str(exc)) from exc
-            except ImagePollTimeoutError as exc:
-                raise ProviderTimeoutError(
-                    str(exc), timeout_secs=poll_timeout
-                ) from exc
-            except UpstreamHTTPError as exc:
-                self._raise_from_upstream(exc)
-            except Exception as exc:
-                logger.exception("ChatGPT provider flow failed")
-                raise ProviderError(f"ChatGPT image edit failed: {exc}") from exc
-        finally:
-            try:
-                self.api_client.close()
-            except Exception:
-                pass
+            png_bytes = self._download_first(urls)
+            return {
+                "created": int(time.time()),
+                "data": [{"b64_json": base64.b64encode(png_bytes).decode("ascii")}],
+            }
+        except ProviderError:
+            raise
+        except InvalidAccessTokenError as exc:
+            raise ProviderAuthError(str(exc)) from exc
+        except ImagePollTimeoutError as exc:
+            raise ProviderTimeoutError(
+                str(exc), timeout_secs=poll_timeout
+            ) from exc
+        except UpstreamHTTPError as exc:
+            self._raise_from_upstream(exc)
+        except Exception as exc:
+            logger.exception("ChatGPT provider flow failed")
+            raise ProviderError(f"ChatGPT image edit failed: {exc}") from exc
 
     _MAX_IMAGE_PIXELS = 4096 * 4096
 
@@ -214,16 +209,23 @@ class ChatGPTWebProvider(BaseImageProvider):
         from urllib.parse import urlparse
         last_exc: Optional[Exception] = None
         for url in urls:
+            if not is_safe_url(url):
+                raise ProviderError(f"SSRF block: URL is not safe to download: {url}")
             response = None
             try:
                 parsed_url = urlparse(url)
                 parsed_base = urlparse(self.api_client.base_url)
-                is_external = bool(parsed_url.netloc and parsed_url.netloc != parsed_base.netloc)
-                auth = None
+                url_host = (parsed_url.hostname or "").lower()
+                base_host = (parsed_base.hostname or "").lower()
+                is_external = bool(url_host and url_host != base_host)
+                popped_headers = {}
                 if is_external:
-                    auth = self.api_client.session.headers.pop("Authorization", None)
+                    # Pop Authorization and OAI-* headers
+                    to_pop = [h for h in self.api_client.session.headers if h.lower() == "authorization" or h.lower().startswith("oai-")]
+                    for h in to_pop:
+                        popped_headers[h] = self.api_client.session.headers.pop(h)
                 try:
-                    response = self.api_client.session.get(url, stream=True, timeout=120)
+                    response = self.api_client.session.get(url, stream=True, timeout=30)
                     if 200 <= response.status_code < 300:
                         chunks = []
                         total_bytes = 0
@@ -242,8 +244,8 @@ class ChatGPTWebProvider(BaseImageProvider):
                         f"download failed: status={response.status_code}"
                     )
                 finally:
-                    if auth is not None:
-                        self.api_client.session.headers["Authorization"] = auth
+                    for h, val in popped_headers.items():
+                        self.api_client.session.headers[h] = val
             except Exception as exc:
                 last_exc = exc
                 continue
@@ -253,7 +255,17 @@ class ChatGPTWebProvider(BaseImageProvider):
                         response.close()
                     except Exception:
                         pass
-        raise ProviderError(f"Failed to download generated image: {last_exc}")
+        if last_exc is not None:
+            raise ProviderError(f"Failed to download generated image: {last_exc}") from last_exc
+        else:
+            raise ProviderError("Failed to download generated image")
+
+    async def close(self) -> None:
+        """Close the curl-cffi session to release resources and connection pool."""
+        try:
+            self.api_client.close()
+        except Exception:
+            pass
 
     @staticmethod
     def _raise_from_upstream(exc: UpstreamHTTPError) -> None:

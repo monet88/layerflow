@@ -17,3 +17,7 @@ class BaseImageProvider(ABC):
     ) -> Dict[str, Any]:
         """Generate/edit an image using the specified provider."""
         pass
+
+    async def close(self) -> None:
+        """Release any resources held by the provider."""
+        pass

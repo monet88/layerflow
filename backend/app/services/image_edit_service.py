@@ -39,12 +39,15 @@ class ImageEditService:
         size: str = "1024x1024",
     ) -> Dict[str, Any]:
         provider = self.get_provider(user_id)
-        return await provider.edit_image(
-            image_bytes=image_bytes,
-            mask_bytes=mask_bytes,
-            prompt=prompt,
-            user_id=user_id,
-            model=model,
-            n=n,
-            size=size,
-        )
+        try:
+            return await provider.edit_image(
+                image_bytes=image_bytes,
+                mask_bytes=mask_bytes,
+                prompt=prompt,
+                user_id=user_id,
+                model=model,
+                n=n,
+                size=size,
+            )
+        finally:
+            await provider.close()

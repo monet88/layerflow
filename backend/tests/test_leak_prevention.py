@@ -91,6 +91,7 @@ def test_chatgpt_provider_closes_client_session():
     
     import asyncio
     asyncio.run(provider.edit_image(b"source", None, "prompt", "user123"))
+    asyncio.run(provider.close())
         
     mock_close.assert_called_once()
 
@@ -104,6 +105,7 @@ def test_chatgpt_provider_closes_session_on_error():
     import asyncio
     with pytest.raises(Exception):
         asyncio.run(provider.edit_image(b"source", None, "prompt", "user123"))
+    asyncio.run(provider.close())
             
     mock_close.assert_called_once()
 
@@ -122,7 +124,8 @@ def test_download_first_strips_auth_header():
     provider.api_client.session.get = mock_get
     provider.api_client.session.headers["Authorization"] = "Bearer test_token"
     
-    res = provider._download_first(["https://example.com/image.png"])
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+        res = provider._download_first(["https://example.com/image.png"])
     assert res == b"downloaded_bytes"
     assert not auth_header_present[0]
     assert "Authorization" in provider.api_client.session.headers
@@ -144,7 +147,8 @@ def test_download_first_keeps_auth_header_for_internal_url():
         
     provider.api_client.session.get = mock_get
     
-    res = provider._download_first(["https://chatgpt.com/backend-api/files/download"])
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+        res = provider._download_first(["https://chatgpt.com/backend-api/files/download"])
     assert res == b"downloaded_bytes"
     assert auth_header_present[0]
     assert "Authorization" in provider.api_client.session.headers
@@ -157,8 +161,9 @@ def test_download_first_limits_max_size():
     
     provider.api_client.session.get = lambda url, **kwargs: mock_response
     
-    with pytest.raises(Exception) as excinfo:
-        provider._download_first(["https://example.com/image.png"])
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+        with pytest.raises(Exception) as excinfo:
+            provider._download_first(["https://example.com/image.png"])
     assert "Download size exceeded" in str(excinfo.value)
 
 def test_upload_image_strips_auth_header():
@@ -190,7 +195,7 @@ def test_upload_image_strips_auth_header():
     mock_img = MagicMock()
     mock_img.size = (10, 10)
     mock_img.format = "PNG"
-    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"):
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"), patch("chatgpt_core.image_upload.is_safe_url", return_value=True):
         client._upload_image("base64_data")
         
     assert not auth_header_present[0]
@@ -226,7 +231,7 @@ def test_upload_image_keeps_auth_header_for_internal_url():
     mock_img = MagicMock()
     mock_img.size = (10, 10)
     mock_img.format = "PNG"
-    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"):
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"), patch("chatgpt_core.image_upload.is_safe_url", return_value=True):
         client._upload_image("base64_data")
         
     assert auth_header_present[0]
@@ -262,7 +267,7 @@ def test_upload_image_strips_auth_header_for_attacker_domain():
     mock_img = MagicMock()
     mock_img.size = (10, 10)
     mock_img.format = "PNG"
-    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"):
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"), patch("chatgpt_core.image_upload.is_safe_url", return_value=True):
         client._upload_image("base64_data")
         
     assert not auth_header_present[0]
@@ -276,7 +281,8 @@ def test_download_first_closes_response():
     
     provider.api_client.session.get = MagicMock(return_value=mock_response)
     
-    res = provider._download_first(["https://example.com/image.png"])
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+        res = provider._download_first(["https://example.com/image.png"])
     assert res == b"downloaded_bytes"
     mock_response.close.assert_called_once()
 
@@ -289,5 +295,108 @@ def test_download_first_closes_response_on_size_limit_error():
     provider.api_client.session.get = MagicMock(return_value=mock_response)
     
     with pytest.raises(Exception):
-        provider._download_first(["https://example.com/image.png"])
+        with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+            provider._download_first(["https://example.com/image.png"])
     mock_response.close.assert_called_once()
+
+def test_download_first_ssrf_validation():
+    provider = ChatGPTWebProvider(access_token="test_token")
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=False):
+        with pytest.raises(Exception) as excinfo:
+            provider._download_first(["https://example.com/image.png"])
+        assert "SSRF block" in str(excinfo.value)
+
+def test_upload_image_ssrf_validation():
+    client = OpenAIBackendAPI(access_token="test_token")
+    mock_post_response = MagicMock()
+    mock_post_response.status_code = 200
+    mock_post_response.json.return_value = {
+        "file_id": "file_123",
+        "upload_url": "https://azure.blob/upload"
+    }
+    client.session.post = lambda url, **kwargs: mock_post_response
+    client._decode_image_base64 = lambda img: b"\x89PNG\r\n\x1a\n"
+    
+    from PIL import Image
+    mock_img = MagicMock()
+    mock_img.size = (10, 10)
+    mock_img.format = "PNG"
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"), patch("chatgpt_core.image_upload.is_safe_url", return_value=False):
+        with pytest.raises(ValueError) as excinfo:
+            client._upload_image("base64_data")
+        assert "SSRF block" in str(excinfo.value)
+
+def test_early_size_limit_middleware(client):
+    headers = {
+        "Authorization": "Bearer test-api-key",
+        "X-User-Id": "user123",
+        "Content-Length": str(4 * 1024 * 1024),
+        "Content-Type": "application/json"
+    }
+    response = client.post("/v1/images/edits", headers=headers, content=b"x" * 100)
+    assert response.status_code == 413
+    assert "Request Entity Too Large" in response.text
+
+def test_download_first_strips_oai_headers():
+    provider = ChatGPTWebProvider(access_token="test_token")
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.iter_content = lambda: [b"downloaded_bytes"]
+    
+    headers_present = {}
+    
+    def mock_get(url, **kwargs):
+        headers_present["OAI-Device-Id"] = "OAI-Device-Id" in provider.api_client.session.headers
+        headers_present["Authorization"] = "Authorization" in provider.api_client.session.headers
+        return mock_response
+        
+    provider.api_client.session.get = mock_get
+    provider.api_client.session.headers["Authorization"] = "Bearer test_token"
+    provider.api_client.session.headers["OAI-Device-Id"] = "device-123"
+    
+    with patch("app.providers.chatgpt_web.is_safe_url", return_value=True):
+        res = provider._download_first(["https://example.com/image.png"])
+    assert res == b"downloaded_bytes"
+    assert not headers_present["Authorization"]
+    assert not headers_present["OAI-Device-Id"]
+    assert "Authorization" in provider.api_client.session.headers
+    assert "OAI-Device-Id" in provider.api_client.session.headers
+
+def test_upload_image_strips_oai_headers():
+    client = OpenAIBackendAPI(access_token="test_token")
+    client.session.headers["Authorization"] = "Bearer test_token"
+    client.session.headers["OAI-Device-Id"] = "device-123"
+    
+    mock_post_response = MagicMock()
+    mock_post_response.status_code = 200
+    mock_post_response.json.return_value = {
+        "file_id": "file_123",
+        "upload_url": "https://azure.blob/upload"
+    }
+    
+    mock_put_response = MagicMock()
+    mock_put_response.status_code = 200
+    
+    headers_present = {}
+    
+    def mock_put(url, **kwargs):
+        headers_present["OAI-Device-Id"] = "OAI-Device-Id" in client.session.headers
+        headers_present["Authorization"] = "Authorization" in client.session.headers
+        return mock_put_response
+        
+    client.session.post = lambda url, **kwargs: mock_post_response
+    client.session.put = mock_put
+    
+    client._decode_image_base64 = lambda img: b"\x89PNG\r\n\x1a\n"
+    
+    from PIL import Image
+    mock_img = MagicMock()
+    mock_img.size = (10, 10)
+    mock_img.format = "PNG"
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"), patch("chatgpt_core.image_upload.is_safe_url", return_value=True):
+        client._upload_image("base64_data")
+        
+    assert not headers_present["Authorization"]
+    assert not headers_present["OAI-Device-Id"]
+    assert "Authorization" in client.session.headers
+    assert "OAI-Device-Id" in client.session.headers

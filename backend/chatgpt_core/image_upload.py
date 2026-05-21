@@ -7,6 +7,7 @@ from typing import Any, Dict
 from PIL import Image
 
 from .errors import ensure_ok
+from app.core.url_security import is_safe_url
 
 def _decode_image_base64(self, image: str) -> bytes:
     """Decode a base64 image string or data URI into raw bytes.
@@ -38,13 +39,20 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
     ensure_ok(response, path)
     upload_meta = response.json()
     upload_url = upload_meta["upload_url"]
+    if not is_safe_url(upload_url):
+        raise ValueError(f"SSRF block: Upload URL is not safe: {upload_url}")
+
     from urllib.parse import urlparse
     parsed_url = urlparse(upload_url)
     parsed_base = urlparse(self.base_url)
-    is_external = bool(parsed_url.netloc and parsed_url.netloc != parsed_base.netloc)
-    auth = None
+    url_host = (parsed_url.hostname or "").lower()
+    base_host = (parsed_base.hostname or "").lower()
+    is_external = bool(url_host and url_host != base_host)
+    popped_headers = {}
     if is_external:
-        auth = self.session.headers.pop("Authorization", None)
+        to_pop = [h for h in self.session.headers if h.lower() == "authorization" or h.lower().startswith("oai-")]
+        for h in to_pop:
+            popped_headers[h] = self.session.headers.pop(h)
     try:
         response = self.session.put(
             upload_url,
@@ -59,11 +67,11 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
                 "Accept-Language": "en-US,en;q=0.8",
             },
             data=data,
-            timeout=120,
+            timeout=30,
         )
     finally:
-        if auth is not None:
-            self.session.headers["Authorization"] = auth
+        for h, val in popped_headers.items():
+            self.session.headers[h] = val
     ensure_ok(response, "image_upload")
     path = f"/backend-api/files/{upload_meta['file_id']}/uploaded"
     response = self.session.post(
