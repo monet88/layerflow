@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     CHATGPT_BASE_URL: str = "https://chatgpt.com"
     CHATGPT_PROXY: Optional[str] = None
+    CHATGPT_POLL_TIMEOUT: float = 150.0  # seconds; ChatGPT image gen takes 30-150s
     ALLOWED_ORIGINS: str = "app://uxp-internal,http://localhost:8000"
     RATE_LIMIT_AUTH: str = "10/minute"
     RATE_LIMIT_IMAGES: str = "5/minute"

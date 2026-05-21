@@ -38,9 +38,13 @@ logger = logging.getLogger(__name__)
 
 
 class ChatGPTWebProvider(BaseImageProvider):
-    """Reverse-proxy provider that drives ChatGPT Web's image edit pipeline."""
+    """Reverse-proxy provider that drives ChatGPT Web's image edit pipeline.
 
-    DEFAULT_POLL_TIMEOUT_SECS = 150.0
+    IMPORTANT: This class is NOT thread-safe.  ``_run_flow_sync`` mutates
+    ``self.api_client`` state (PoW script sources, session cookies).  The
+    service layer MUST create a new instance per request — never cache or
+    share a provider across concurrent ``edit_image`` calls.
+    """
 
     def __init__(self, access_token: str = "", proxy: Optional[str] = None) -> None:
         access_token = (access_token or "").strip()
@@ -62,14 +66,26 @@ class ChatGPTWebProvider(BaseImageProvider):
             raise ValueError("prompt is required")
         if not image_bytes:
             raise ValueError("image bytes are required")
+        if n > 1:
+            raise ValueError(
+                "ChatGPT Web provider does not support n > 1"
+            )
 
+        from app.core.config import settings
+
+        poll_timeout = float(
+            getattr(settings, "CHATGPT_POLL_TIMEOUT", self.DEFAULT_POLL_TIMEOUT_SECS)
+        )
         return await asyncio.to_thread(
             self._run_flow_sync,
             image_bytes=image_bytes,
             mask_bytes=mask_bytes,
             prompt=prompt.strip(),
             model=model,
+            poll_timeout=poll_timeout,
         )
+
+    DEFAULT_POLL_TIMEOUT_SECS = 150.0
 
     def _run_flow_sync(
         self,
@@ -77,6 +93,7 @@ class ChatGPTWebProvider(BaseImageProvider):
         mask_bytes: Optional[bytes],
         prompt: str,
         model: str,
+        poll_timeout: float = DEFAULT_POLL_TIMEOUT_SECS,
     ) -> Dict[str, Any]:
         """Blocking ChatGPT pipeline. Must be called via asyncio.to_thread."""
         try:
@@ -96,7 +113,7 @@ class ChatGPTWebProvider(BaseImageProvider):
                 raise ProviderError("ChatGPT did not return a conversation id")
 
             file_ids, sediment_ids = self.api_client._poll_image_results(
-                conversation_id, timeout_secs=self.DEFAULT_POLL_TIMEOUT_SECS
+                conversation_id, timeout_secs=poll_timeout
             )
             urls = self.api_client._resolve_image_urls(conversation_id, file_ids, sediment_ids)
             if not urls:
@@ -113,13 +130,17 @@ class ChatGPTWebProvider(BaseImageProvider):
             raise ProviderAuthError(str(exc)) from exc
         except ImagePollTimeoutError as exc:
             raise ProviderTimeoutError(
-                str(exc), timeout_secs=self.DEFAULT_POLL_TIMEOUT_SECS
+                str(exc), timeout_secs=poll_timeout
             ) from exc
         except UpstreamHTTPError as exc:
             self._raise_from_upstream(exc)
         except Exception as exc:
             logger.exception("ChatGPT provider flow failed")
             raise ProviderError(f"ChatGPT image edit failed: {exc}") from exc
+
+    # Cap PIL pixel budget to prevent decompression bombs that bypass the
+    # 20 MB upload budget.  4096×4096 = ~16.7M pixels (~67 MB RGBA RAM).
+    _MAX_IMAGE_PIXELS = 4096 * 4096
 
     @staticmethod
     def _composite_mask(image_bytes: bytes, mask_bytes: Optional[bytes]) -> bytes:
@@ -129,20 +150,25 @@ class ChatGPTWebProvider(BaseImageProvider):
         what ChatGPT Web expects on the inpaint upload (transparent regions
         are repainted). When no mask is supplied we return the source as-is.
         """
-        source = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-        if not mask_bytes:
+        saved = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = ChatGPTWebProvider._MAX_IMAGE_PIXELS
+        try:
+            source = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+            if not mask_bytes:
+                buf = io.BytesIO()
+                source.save(buf, format="PNG")
+                return buf.getvalue()
+
+            mask = Image.open(io.BytesIO(mask_bytes)).convert("RGBA")
+            if mask.size != source.size:
+                mask = mask.resize(source.size, Image.NEAREST)
+            alpha = mask.split()[3]
+            source.putalpha(alpha)
             buf = io.BytesIO()
             source.save(buf, format="PNG")
             return buf.getvalue()
-
-        mask = Image.open(io.BytesIO(mask_bytes)).convert("RGBA")
-        if mask.size != source.size:
-            mask = mask.resize(source.size, Image.NEAREST)
-        alpha = mask.split()[3]
-        source.putalpha(alpha)
-        buf = io.BytesIO()
-        source.save(buf, format="PNG")
-        return buf.getvalue()
+        finally:
+            Image.MAX_IMAGE_PIXELS = saved
 
     @staticmethod
     def _extract_conversation_id(sse_response) -> str:

@@ -21,6 +21,8 @@ class ImageEditService:
                 raise ProviderAuthError(
                     f"No active session for user_id={user_id}"
                 )
+            # IMPORTANT: ChatGPTWebProvider is NOT thread-safe — create a new
+            # instance per request.  Never cache or share across concurrent calls.
             from app.providers.chatgpt_web import ChatGPTWebProvider
             return ChatGPTWebProvider(access_token=access_token, proxy=settings.CHATGPT_PROXY)
         else:

@@ -67,7 +67,7 @@ class OpenAIBackendAPI:
             "User-Agent": self.user_agent,
             "Origin": self.base_url,
             "Referer": self.base_url + "/",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9",
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
             "Priority": "u=1, i",
@@ -85,7 +85,7 @@ class OpenAIBackendAPI:
             "Sec-Fetch-Site": "same-origin",
             "OAI-Device-Id": self.device_id,
             "OAI-Session-Id": self.session_id,
-            "OAI-Language": "zh-CN",
+            "OAI-Language": "en-US",
             "OAI-Client-Version": self.client_version,
             "OAI-Client-Build-Number": self.client_build_number,
         })
@@ -130,7 +130,7 @@ class OpenAIBackendAPI:
         return {
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
             "Sec-Ch-Ua": self.session.headers["Sec-Ch-Ua"],
             "Sec-Ch-Ua-Mobile": self.session.headers["Sec-Ch-Ua-Mobile"],
             "Sec-Ch-Ua-Platform": self.session.headers["Sec-Ch-Ua-Platform"],

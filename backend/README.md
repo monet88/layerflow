@@ -147,7 +147,7 @@ pytest -q
 Failure cases to verify:
 - Expired token → `401` with `{"detail": {"code": "provider_auth_failed", …}}`.
 - Subscription / session issue → `403` with `provider_reconnect_required`.
-- More than 5 image edits/minute per `X-User-Id` → `429` with `provider_rate_limited`.
+- More than 5 image edits/minute per client IP → `429` with `provider_rate_limited`.
 
 ### Deployment Notes
 
@@ -155,8 +155,13 @@ Failure cases to verify:
   `APP_API_KEY=dev-app-key` default fail fast at startup. Override
   `APP_API_KEY` in the host environment before `docker-compose up`.
 - `RATE_LIMIT_AUTH` and `RATE_LIMIT_IMAGES` are slowapi expressions
-  (`5/minute`, `10/minute`, …); they apply per `X-User-Id` not per IP, so
-  multiple installs behind a NAT each get their own bucket.
+  (`5/minute`, `10/minute`, …); they apply per client IP address.
+- **Reverse proxy:** If the backend runs behind nginx/Traefik, configure
+  `ProxyHeadersMiddleware` (or equivalent) so `X-Forwarded-For` is trusted.
+  Without this, all clients share a single rate-limit bucket keyed on the
+  proxy's IP.
+- `CHATGPT_POLL_TIMEOUT` (default 150s) controls how long the backend waits
+  for ChatGPT image generation before returning a timeout error.
 - SQLite runs in WAL mode with a 5s `busy_timeout` so the FastAPI
   threadpool can write tokens without lock conflicts. The data directory
   must be writable by the container user.
