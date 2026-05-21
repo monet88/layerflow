@@ -1,0 +1,555 @@
+# Instincts generated from https://github.com/monet88/layerflow
+# Generated: 2026-05-21T10:41:42.429Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: layerflow-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: feat, fix, docs, sec, chore
+
+## Evidence
+
+- 19 commits analyzed
+- Detected conventional commit pattern
+- Examples: feat: scaffold initial UXP project structure with Vite, React, and build configurations, docs: restructure CLAUDE.md with actionable project architecture and development workflow guidelines
+
+---
+id: layerflow-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Commit Length
+
+## Action
+
+Write moderate-length commit messages (~87 characters)
+
+## Evidence
+
+- Average commit message length: 87 chars
+- Based on 19 commits
+
+---
+id: layerflow-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: layerflow-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: layerflow-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: layerflow-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: components, hooks, photoshop, providers, services
+
+---
+id: layerflow-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: layerflow-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~16x per month
+- Files: src/*, src/types/*, src/components/*
+
+---
+id: layerflow-workflow-phase-based-feature-development
+trigger: "when doing phase based feature development"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Workflow Phase Based Feature Development
+
+## Action
+
+Follow the phase-based-feature-development workflow:
+1. Add or update phase plan markdown in plans/phase-XX-*.md
+2. Update the main plan.md to reflect phase progress
+3. Implement or modify code files in src/ or backend/ relevant to the phase
+4. Update or add types, services, or components as needed
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: plans/260519-2141-inpaintkit-uxp-plugin/phase-*.md, plans/260519-2141-inpaintkit-uxp-plugin/plan.md, src/**/*
+
+---
+id: layerflow-workflow-backend-feature-or-provider-addition
+trigger: "when doing backend feature or provider addition"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Workflow Backend Feature Or Provider Addition
+
+## Action
+
+Follow the backend-feature-or-provider-addition workflow:
+1. Add or modify provider/service modules in backend/app/providers/ or backend/app/services/
+2. Update or add API route files in backend/app/api/routes/
+3. Update backend/main.py or backend/docker-compose.yml if needed
+4. Add or update tests in backend/tests/
+5. Update backend/README.md and requirements
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: backend/app/providers/*.py, backend/app/services/*.py, backend/app/api/routes/*.py
+
+---
+id: layerflow-workflow-security-and-code-review-hardening
+trigger: "when doing security and code review hardening"
+confidence: 0.7
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Workflow Security And Code Review Hardening
+
+## Action
+
+Follow the security-and-code-review-hardening workflow:
+1. Modify backend modules to fix security/resource issues (e.g., SSRF, leaks, race conditions)
+2. Update or add tests to verify fixes (often test_leak_prevention.py)
+3. Document findings or deferred issues in plans/phase-XX-*.md or README
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~4x per month
+- Files: backend/app/core/*.py, backend/app/providers/*.py, backend/app/services/*.py
+
+---
+id: layerflow-workflow-plan-and-phase-documentation-update
+trigger: "when doing plan and phase documentation update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/monet88/layerflow
+---
+
+# Layerflow Workflow Plan And Phase Documentation Update
+
+## Action
+
+Follow the plan-and-phase-documentation-update workflow:
+1. Mark phase as complete or update status in plans/phase-XX-*.md
+2. Update main plan.md with new phase statuses or carry-overs
+3. Add or update reports in plans/reports/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: plans/260519-2141-inpaintkit-uxp-plugin/phase-*.md, plans/260519-2141-inpaintkit-uxp-plugin/plan.md, plans/260519-2141-inpaintkit-uxp-plugin/reports/*.md
+
+---
+id: layerflow-instinct-file-naming-camelCase
+trigger: "When creating or renaming a file in the codebase."
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct File Naming CamelCase
+
+## Action
+
+Name the file using camelCase (e.g., myComponent.tsx).
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- src/components/ and src/hooks/ file names
+
+---
+id: layerflow-instinct-function-naming-camelCase
+trigger: "When defining a new function."
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Function Naming CamelCase
+
+## Action
+
+Name the function using camelCase (e.g., handleClick).
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: layerflow-instinct-class-naming-PascalCase
+trigger: "When defining a new class."
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Class Naming PascalCase
+
+## Action
+
+Name the class using PascalCase (e.g., UserService).
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: layerflow-instinct-constant-naming-SCREAMING_SNAKE_CASE
+trigger: "When defining a constant."
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Constant Naming SCREAMING_SNAKE_CASE
+
+## Action
+
+Name the constant using SCREAMING_SNAKE_CASE (e.g., MAX_TIMEOUT).
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: layerflow-instinct-imports-relative
+trigger: "When importing modules in code."
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Imports Relative
+
+## Action
+
+Use relative import paths (e.g., import x from '../utils/x').
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+- src/components/ and src/hooks/ imports
+
+---
+id: layerflow-instinct-exports-named
+trigger: "When exporting modules or functions."
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Exports Named
+
+## Action
+
+Use named exports instead of default exports.
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: layerflow-instinct-test-file-pattern
+trigger: "When creating a new test file."
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Test File Pattern
+
+## Action
+
+Name the test file with the pattern *.test.ts (e.g., userService.test.ts).
+
+## Evidence
+
+- Pattern in testing.filePattern
+- backend/tests/*.py
+- src/**/*.test.ts
+
+---
+id: layerflow-instinct-unit-test-type
+trigger: "When writing tests."
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Unit Test Type
+
+## Action
+
+Write unit tests for new features or modules.
+
+## Evidence
+
+- Pattern in testing.testTypes
+- backend/tests/*.py
+
+---
+id: layerflow-instinct-commit-conventional-format
+trigger: "When making a git commit."
+confidence: 0.95
+domain: git
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Commit Conventional Format
+
+## Action
+
+Format the commit message as <type>: <description>, using one of the prefixes: feat, fix, docs, sec, chore.
+
+## Evidence
+
+- Pattern in commits.type and commits.prefixes
+- Examples in commits.examples
+
+---
+id: layerflow-instinct-commit-scope-optional
+trigger: "When making a git commit for a specific submodule or area."
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Commit Scope Optional
+
+## Action
+
+Optionally include a scope in parentheses after the type (e.g., fix(backend): ...).
+
+## Evidence
+
+- Seen in commit 'fix(backend): correct timeout error code...'
+- Pattern in commits.examples
+
+---
+id: layerflow-instinct-phase-based-feature-development
+trigger: "When starting a new planned phase or major feature (e.g., UI, provider, backend module)."
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Phase Based Feature Development
+
+## Action
+
+Add or update phase plan markdown in plans/phase-XX-*.md, update plan.md, implement or modify code in src/ or backend/, and update/add types/services/components as needed.
+
+## Evidence
+
+- Workflow: phase-based-feature-development
+- plans/260519-2141-inpaintkit-uxp-plugin/phase-*.md
+- src/**/*
+- backend/**/*
+
+---
+id: layerflow-instinct-backend-feature-or-provider-addition
+trigger: "When implementing a new backend provider, API endpoint, or major backend capability."
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Backend Feature Or Provider Addition
+
+## Action
+
+Add or modify provider/service modules in backend/app/providers/ or backend/app/services/, update or add API route files, update backend/main.py or docker-compose.yml if needed, add or update tests, and update backend/README.md and requirements.
+
+## Evidence
+
+- Workflow: backend-feature-or-provider-addition
+- backend/app/providers/*.py
+- backend/app/services/*.py
+- backend/app/api/routes/*.py
+
+---
+id: layerflow-instinct-security-and-code-review-hardening
+trigger: "When a code review or security audit identifies issues to be fixed."
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Security And Code Review Hardening
+
+## Action
+
+Modify backend modules to fix security/resource issues, update or add tests (often test_leak_prevention.py), and document findings or deferred issues in plans/phase-XX-*.md or README.
+
+## Evidence
+
+- Workflow: security-and-code-review-hardening
+- backend/app/core/*.py
+- backend/tests/test_leak_prevention.py
+- plans/260519-2141-inpaintkit-uxp-plugin/phase-*.md
+
+---
+id: layerflow-instinct-plan-and-phase-documentation-update
+trigger: "When a phase is completed or planning needs to be updated with new status, carry-overs, or reports."
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: monet88/layerflow
+---
+
+# Layerflow Instinct Plan And Phase Documentation Update
+
+## Action
+
+Mark phase as complete or update status in plans/phase-XX-*.md, update plan.md, and add or update reports in plans/reports/.
+
+## Evidence
+
+- Workflow: plan-and-phase-documentation-update
+- plans/260519-2141-inpaintkit-uxp-plugin/phase-*.md
+- plans/260519-2141-inpaintkit-uxp-plugin/plan.md
+- plans/260519-2141-inpaintkit-uxp-plugin/reports/*.md
+
