@@ -17,6 +17,13 @@ from main import app
 def setup_test_db():
     """Ensure a clean test database is initialized for each test run."""
     db_path = "data/test_app.sqlite"
+    from app.db.sqlite import _local
+    if hasattr(_local, "conn") and _local.conn is not None:
+        try:
+            _local.conn.close()
+        except Exception:
+            pass
+        _local.conn = None
     if os.path.exists(db_path):
         try:
             os.remove(db_path)
@@ -24,6 +31,12 @@ def setup_test_db():
             pass
     init_db()
     yield
+    if hasattr(_local, "conn") and _local.conn is not None:
+        try:
+            _local.conn.close()
+        except Exception:
+            pass
+        _local.conn = None
     if os.path.exists(db_path):
         try:
             os.remove(db_path)
