@@ -26,6 +26,14 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.responses import Response
 
+class ContentTooLargeError(Exception):
+    """Raised when request body bytes exceed max_content_length during streaming/chunked read."""
+    pass
+
+@app.exception_handler(ContentTooLargeError)
+async def content_too_large_handler(request, exc: ContentTooLargeError):
+    return Response("Request Entity Too Large", status_code=413)
+
 class ContentLengthLimitMiddleware:
     def __init__(self, app: ASGIApp, max_content_length: int) -> None:
         self.app = app
@@ -46,6 +54,40 @@ class ContentLengthLimitMiddleware:
                 response = Response("Request Entity Too Large", status_code=413)
                 await response(scope, receive, send)
                 return
+
+            total_read = 0
+            body_too_large = False
+            response_started = False
+
+            async def wrapped_receive() -> dict:
+                nonlocal total_read, body_too_large
+                if body_too_large:
+                    raise ContentTooLargeError()
+
+                message = await receive()
+                if message["type"] == "http.request":
+                    body_len = len(message.get("body", b""))
+                    total_read += body_len
+                    if total_read > self.max_content_length:
+                        body_too_large = True
+                        raise ContentTooLargeError()
+                return message
+
+            async def wrapped_send(message: dict) -> None:
+                nonlocal response_started
+                if message["type"] == "http.response.start":
+                    response_started = True
+                await send(message)
+
+            try:
+                await self.app(scope, wrapped_receive, wrapped_send)
+                return
+            except Exception as exc:
+                if body_too_large and not response_started:
+                    response = Response("Request Entity Too Large", status_code=413)
+                    await response(scope, receive, send)
+                    return
+                raise exc
 
         await self.app(scope, receive, send)
 

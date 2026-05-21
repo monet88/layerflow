@@ -34,7 +34,7 @@ from chatgpt_core.errors import (
     UpstreamHTTPError,
 )
 from chatgpt_core.sse_parser import iter_sse_payloads
-from app.core.url_security import is_safe_url
+from app.core.url_security import validate_and_resolve_url, is_safe_url
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,11 @@ class ChatGPTWebProvider(BaseImageProvider):
         access_token = (access_token or "").strip()
         if not access_token:
             raise ProviderAuthError("Missing access token")
-        self.api_client = OpenAIBackendAPI(access_token=access_token, proxy=proxy)
+        self.api_client = OpenAIBackendAPI(
+            access_token=access_token,
+            proxy=proxy,
+            url_validator=validate_and_resolve_url,
+        )
 
     async def edit_image(
         self,
@@ -205,56 +209,124 @@ class ChatGPTWebProvider(BaseImageProvider):
                 except Exception:
                     pass
 
+    def _read_response_stream(self, response: Any) -> bytes:
+        if not (200 <= response.status_code < 300):
+            return b""
+        chunks = []
+        total_bytes = 0
+        max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+        for chunk in response.iter_content(chunk_size=65536):
+            total_bytes += len(chunk)
+            if total_bytes > max_bytes:
+                raise RuntimeError(
+                    f"Download size exceeded maximum allowed budget of {settings.MAX_UPLOAD_MB}MB"
+                )
+            chunks.append(chunk)
+        return b"".join(chunks)
+
     def _download_first(self, urls: list[str]) -> bytes:
-        from urllib.parse import urlparse
+        import os
+        import ipaddress
+        from urllib.parse import urlparse, urljoin
         last_exc: Optional[Exception] = None
         for url in urls:
-            if not is_safe_url(url):
-                raise ProviderError(f"SSRF block: URL is not safe to download: {url}")
+            current_url = url
+            redirect_count = 0
+            max_redirects = 5
             response = None
-            try:
-                parsed_url = urlparse(url)
+            
+            while redirect_count <= max_redirects:
+                parsed_url = urlparse(current_url)
                 parsed_base = urlparse(self.api_client.base_url)
                 url_host = (parsed_url.hostname or "").lower()
                 base_host = (parsed_base.hostname or "").lower()
                 is_external = bool(url_host and url_host != base_host)
-                popped_headers = {}
+
+                resolved_ips = []
                 if is_external:
-                    # Pop Authorization and OAI-* headers
-                    to_pop = [h for h in self.api_client.session.headers if h.lower() == "authorization" or h.lower().startswith("oai-")]
-                    for h in to_pop:
-                        popped_headers[h] = self.api_client.session.headers.pop(h)
+                    if self.api_client.url_validator:
+                        safe, resolved_ips = self.api_client.url_validator(current_url)
+                        if not safe or not resolved_ips:
+                            raise ProviderError(f"SSRF block: URL is not safe to download: {current_url}")
+                    else:
+                        safe, resolved_ips = validate_and_resolve_url(current_url)
+                        if not safe or not resolved_ips:
+                            raise ProviderError(f"SSRF block: URL is not safe to download: {current_url}")
+                else:
+                    validator = self.api_client.url_validator or validate_and_resolve_url
+                    safe, _ = validator(current_url)
+                    if not safe:
+                        raise ProviderError(f"SSRF block: URL is not safe to download: {current_url}")
+
+                response = None
                 try:
-                    response = self.api_client.session.get(url, stream=True, timeout=30)
-                    if 200 <= response.status_code < 300:
-                        chunks = []
-                        total_bytes = 0
-                        max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
-                        for chunk in response.iter_content():
-                            total_bytes += len(chunk)
-                            if total_bytes > max_bytes:
-                                raise RuntimeError(
-                                    f"Download size exceeded maximum allowed budget of {settings.MAX_UPLOAD_MB}MB"
-                                )
-                            chunks.append(chunk)
-                        content = b"".join(chunks)
+                    if is_external:
+                        from curl_cffi import requests as ext_requests, CurlOpt
+                        curl_options = {}
+                        if resolved_ips and parsed_url.hostname:
+                            is_ip = False
+                            try:
+                                ipaddress.ip_address(parsed_url.hostname)
+                                is_ip = True
+                            except ValueError:
+                                pass
+                            if not is_ip:
+                                port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+                                host = parsed_url.hostname
+                                if ":" in host:
+                                    host = f"[{host}]"
+                                curl_options[CurlOpt.RESOLVE] = [
+                                    f"{host}:{port}:[{ip}]" if ":" in ip else f"{host}:{port}:{ip}"
+                                    for ip in resolved_ips
+                                ]
+
+                        proxy = getattr(self.api_client, "proxy", None) or os.environ.get("CHATGPT_PROXY")
+                        session_kwargs = {"impersonate": self.api_client.fp["impersonate"], "verify": True}
+                        if proxy and proxy.strip():
+                            session_kwargs["proxy"] = proxy.strip()
+                        if curl_options:
+                            session_kwargs["curl_options"] = curl_options
+
+                        with ext_requests.Session(**session_kwargs) as download_session:
+                            response = download_session.get(current_url, stream=True, allow_redirects=False, timeout=30)
+                            if response.status_code in (301, 302, 303, 307, 308):
+                                redirect_url = response.headers.get("Location")
+                                if not redirect_url:
+                                    break
+                                current_url = urljoin(current_url, redirect_url)
+                                redirect_count += 1
+                                continue
+                            content = self._read_response_stream(response)
+                            if content:
+                                return content
+                    else:
+                        response = self.api_client.session.get(current_url, stream=True, allow_redirects=False, timeout=30)
+                        if response.status_code in (301, 302, 303, 307, 308):
+                            redirect_url = response.headers.get("Location")
+                            if not redirect_url:
+                                break
+                            current_url = urljoin(current_url, redirect_url)
+                            redirect_count += 1
+                            continue
+                        content = self._read_response_stream(response)
                         if content:
                             return content
+
                     last_exc = RuntimeError(
-                        f"download failed: status={response.status_code}"
+                        f"download failed: status={response.status_code if response else 'No Response'}"
                     )
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    break
                 finally:
-                    for h, val in popped_headers.items():
-                        self.api_client.session.headers[h] = val
-            except Exception as exc:
-                last_exc = exc
-                continue
-            finally:
-                if response is not None:
-                    try:
-                        response.close()
-                    except Exception:
-                        pass
+                    if response is not None:
+                        try:
+                            response.close()
+                        except Exception:
+                            pass
+            else:
+                last_exc = RuntimeError("Max redirects exceeded")
         if last_exc is not None:
             raise ProviderError(f"Failed to download generated image: {last_exc}") from last_exc
         else:

@@ -1,13 +1,14 @@
 import os
 import base64
 import time
+import logging
 from pathlib import Path
 from io import BytesIO
 from typing import Any, Dict
 from PIL import Image
-
 from .errors import ensure_ok
-from app.core.url_security import is_safe_url
+
+logger = logging.getLogger("chatgpt_core")
 
 def _decode_image_base64(self, image: str) -> bytes:
     """Decode a base64 image string or data URI into raw bytes.
@@ -39,21 +40,68 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
     ensure_ok(response, path)
     upload_meta = response.json()
     upload_url = upload_meta["upload_url"]
-    if not is_safe_url(upload_url):
-        raise ValueError(f"SSRF block: Upload URL is not safe: {upload_url}")
-
     from urllib.parse import urlparse
     parsed_url = urlparse(upload_url)
     parsed_base = urlparse(self.base_url)
     url_host = (parsed_url.hostname or "").lower()
     base_host = (parsed_base.hostname or "").lower()
     is_external = bool(url_host and url_host != base_host)
-    popped_headers = {}
+
+    resolved_ips = []
+    if self.url_validator:
+        safe, resolved_ips = self.url_validator(upload_url)
+        if not safe or not resolved_ips:
+            raise ValueError(f"SSRF block: Upload URL is not safe: {upload_url}")
+    else:
+        raise ValueError(f"SSRF block: No URL validator configured for upload URL: {upload_url}")
+
     if is_external:
-        to_pop = [h for h in self.session.headers if h.lower() == "authorization" or h.lower().startswith("oai-")]
-        for h in to_pop:
-            popped_headers[h] = self.session.headers.pop(h)
-    try:
+        from curl_cffi import requests as ext_requests, CurlOpt
+        curl_options = {}
+        import ipaddress
+        if resolved_ips and parsed_url.hostname:
+            is_ip = False
+            try:
+                ipaddress.ip_address(parsed_url.hostname)
+                is_ip = True
+            except ValueError:
+                pass
+            if not is_ip:
+                port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+                host = parsed_url.hostname
+                if ":" in host:
+                    host = f"[{host}]"
+                curl_options[CurlOpt.RESOLVE] = [
+                    f"{host}:{port}:[{ip}]" if ":" in ip else f"{host}:{port}:{ip}"
+                    for ip in resolved_ips
+                ]
+
+        proxy = getattr(self, "proxy", None) or os.environ.get("CHATGPT_PROXY")
+        session_kwargs = {"impersonate": self.fp["impersonate"], "verify": True}
+        if proxy and proxy.strip():
+            session_kwargs["proxy"] = proxy.strip()
+        if curl_options:
+            session_kwargs["curl_options"] = curl_options
+
+        with ext_requests.Session(**session_kwargs) as upload_session:
+            response = upload_session.put(
+                upload_url,
+                headers={
+                    "Content-Type": mime_type,
+                    "x-ms-blob-type": "BlockBlob",
+                    "x-ms-version": "2020-04-08",
+                    "Origin": self.base_url,
+                    "Referer": self.base_url + "/",
+                    "User-Agent": self.user_agent,
+                    "Accept": "application/json, text/plain, */*",
+                    "Accept-Language": "en-US,en;q=0.8",
+                },
+                data=data,
+                timeout=30,
+                allow_redirects=False,
+            )
+            ensure_ok(response, "image_upload")
+    else:
         response = self.session.put(
             upload_url,
             headers={
@@ -68,11 +116,9 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
             },
             data=data,
             timeout=30,
+            allow_redirects=False,
         )
-    finally:
-        for h, val in popped_headers.items():
-            self.session.headers[h] = val
-    ensure_ok(response, "image_upload")
+        ensure_ok(response, "image_upload")
     path = f"/backend-api/files/{upload_meta['file_id']}/uploaded"
     response = self.session.post(
         self.base_url + path,

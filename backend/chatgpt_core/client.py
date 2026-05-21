@@ -21,6 +21,7 @@ DEFAULT_CLIENT_VERSION = "prod-be885abbfcfe7b1f511e88b3003d9ee44757fbad"
 DEFAULT_CLIENT_BUILD_NUMBER = "5955942"
 CODEX_IMAGE_MODEL = "codex-gpt-image-2"
 
+from app.core.url_security import validate_and_resolve_url as _default_url_validator
 class OpenAIBackendAPI:
     """ChatGPT reverse proxy client targeting image generation endpoints."""
 
@@ -40,9 +41,15 @@ class OpenAIBackendAPI:
         _resolve_image_urls,
     )
 
-    def __init__(self, access_token: str = "", proxy: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        access_token: str = "",
+        proxy: Optional[str] = None,
+        url_validator: Optional[Any] = None,
+    ) -> None:
         """Initialize the client with optional access token and proxy."""
         self.base_url = "https://chatgpt.com"
+        self.url_validator = url_validator or _default_url_validator
         self.client_version = DEFAULT_CLIENT_VERSION
         self.client_build_number = DEFAULT_CLIENT_BUILD_NUMBER
         self.access_token = access_token.strip()
@@ -57,10 +64,11 @@ class OpenAIBackendAPI:
         
         if not proxy:
             proxy = os.environ.get("CHATGPT_PROXY")
+        self.proxy = proxy.strip() if (proxy and proxy.strip()) else None
             
         session_kwargs = {"impersonate": self.fp["impersonate"], "verify": True}
-        if proxy:
-            session_kwargs["proxy"] = proxy.strip()
+        if self.proxy:
+            session_kwargs["proxy"] = self.proxy
             
         self.session = requests.Session(**session_kwargs)
         self.session.headers.update({
