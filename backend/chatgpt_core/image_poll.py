@@ -10,7 +10,7 @@ from .errors import UpstreamHTTPError, ImagePollTimeoutError
 logger = logging.getLogger("chatgpt_core")
 
 def _get_conversation(self, conversation_id: str) -> Dict[str, Any]:
-    """获取完整 conversation 详情。"""
+    """Fetch the full conversation document."""
     path = f"/backend-api/conversation/{conversation_id}"
     response = self.session.get(self.base_url + path, headers=self._headers(path, {"Accept": "application/json"}),
                                 timeout=60)
@@ -19,7 +19,7 @@ def _get_conversation(self, conversation_id: str) -> Dict[str, Any]:
     return response.json()
 
 def _extract_image_tool_records(self, data: Dict[str, Any]) -> list[Dict[str, Any]]:
-    """从 conversation 明细里提取图片工具输出记录。"""
+    """Extract image tool output records from a conversation document."""
     mapping = data.get("mapping") or {}
     file_pat = re.compile(r"file-service://([A-Za-z0-9_-]+)")
     sed_pat = re.compile(r"sediment://([A-Za-z0-9_-]+)")
@@ -153,7 +153,6 @@ def _poll_image_results(self, conversation_id: str, timeout_secs: float = 120.0)
         "initial_wait_exhausted_budget": attempt == 0,
     })
     raise ImagePollTimeoutError(
-        f"ChatGPT 生图超时（已等待 {timeout_secs} 秒）。"
-        f"当前超时阈值可在 config.json 中调大 image_poll_timeout_secs，"
-        f"也可能是账号被限流或生图队列拥堵导致。"
+        f"ChatGPT image generation timed out after {timeout_secs}s. "
+        f"This may indicate account rate limiting or upstream queue congestion."
     )

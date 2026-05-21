@@ -9,7 +9,7 @@ from .types import ChatRequirements
 CODEX_IMAGE_MODEL = "codex-gpt-image-2"
 
 def _image_model_slug(self, model: str) -> str:
-    """把标准图片模型名映射到底层 model slug。"""
+    """Map a public image model name to the upstream model slug."""
     model = str(model or "").strip()
     if not model:
         return "auto"
@@ -20,7 +20,7 @@ def _image_model_slug(self, model: str) -> str:
     return "auto"
 
 def _image_headers(self, path: str, requirements: ChatRequirements, conduit_token: str = "", accept: str = "*/*") -> Dict[str, str]:
-    """构造图片链路请求头。"""
+    """Build image-pipeline request headers."""
     headers = {
         "Content-Type": "application/json",
         "Accept": accept,
@@ -35,7 +35,7 @@ def _image_headers(self, path: str, requirements: ChatRequirements, conduit_toke
     return self._headers(path, headers)
 
 def _conversation_headers(self, path: str, requirements: ChatRequirements) -> Dict[str, str]:
-    """根据当前 requirements 构造对话 SSE 请求头。"""
+    """Build SSE conversation request headers from current requirements."""
     headers = {
         "Accept": "text/event-stream",
         "Content-Type": "application/json",
@@ -50,7 +50,7 @@ def _conversation_headers(self, path: str, requirements: ChatRequirements) -> Di
     return self._headers(path, headers)
 
 def _prepare_image_conversation(self, prompt: str, requirements: ChatRequirements, model: str) -> str:
-    """为图片生成准备 conduit token。"""
+    """Prepare the conduit token used by the image generation SSE call."""
     path = "/backend-api/f/conversation/prepare"
     payload = {
         "action": "next",
@@ -82,7 +82,7 @@ def _prepare_image_conversation(self, prompt: str, requirements: ChatRequirement
 
 def _start_image_generation(self, prompt: str, requirements: ChatRequirements, conduit_token: str, model: str,
                             references: Optional[list[Dict[str, Any]]] = None) -> requests.Response:
-    """启动图片生成或编辑的 SSE 请求。"""
+    """Start an image generation or edit SSE request and return the streaming response."""
     references = references or []
     parts = [{
         "content_type": "image_asset_pointer",

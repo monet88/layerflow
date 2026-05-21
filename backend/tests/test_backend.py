@@ -87,8 +87,9 @@ def test_edit_image_no_session(client, monkeypatch):
         files={"image": ("image.png", img_bytes, "image/png")},
         data={"prompt": "draw a cat", "model": "gpt-image-2"}
     )
-    assert response.status_code == 400
-    assert "No active session found" in response.json()["detail"]
+    assert response.status_code == 401
+    detail = response.json()["detail"]
+    assert detail["code"] == "provider_auth_failed"
 
 def test_edit_image_mock(client):
     img_io = BytesIO()
@@ -124,18 +125,33 @@ def test_edit_image_size_exceeded(client):
     assert response.status_code == 413
     assert "exceeds maximum allowed size" in response.json()["detail"]
 
-def test_edit_image_not_implemented_chatgpt_web(client, monkeypatch):
-    # Connect a session
+def test_edit_image_chatgpt_web_auth_error(client, monkeypatch):
+    """Phase 8: with a connected session, provider runs and surfaces upstream
+    401 as ``provider_auth_failed``. We stub the chatgpt_core flow so no real
+    network call is made.
+    """
     payload = {"access_token": "valid_token_value_longer_than_10_chars"}
     client.post(
         "/auth/chatgpt/session",
         json=payload,
-        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"}
+        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
     )
 
-    # Set provider to chatgpt_web
     from app.core.config import settings
     monkeypatch.setattr(settings, "IMAGE_PROVIDER", "chatgpt_web")
+
+    from chatgpt_core.errors import UpstreamHTTPError
+    from app.providers import chatgpt_web as provider_module
+
+    def _raise_401(self, *_args, **_kwargs):
+        raise UpstreamHTTPError("bootstrap", 401, "unauthorized", retry_after=None)
+
+    monkeypatch.setattr(
+        provider_module.OpenAIBackendAPI,
+        "_upload_image",
+        _raise_401,
+        raising=True,
+    )
 
     img_io = BytesIO()
     Image.new("RGBA", (10, 10), (255, 0, 0, 255)).save(img_io, format="PNG")
@@ -145,10 +161,10 @@ def test_edit_image_not_implemented_chatgpt_web(client, monkeypatch):
         "/v1/images/edits",
         headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
         files={"image": ("image.png", img_bytes, "image/png")},
-        data={"prompt": "draw a cat", "model": "gpt-image-2"}
+        data={"prompt": "draw a cat", "model": "gpt-image-2"},
     )
-    assert response.status_code == 501
-    assert "not implemented yet" in response.json()["detail"]
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "provider_auth_failed"
 
 def test_logging_filter_redaction():
     import logging

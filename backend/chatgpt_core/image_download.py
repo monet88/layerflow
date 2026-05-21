@@ -6,7 +6,7 @@ from .errors import ensure_ok
 logger = logging.getLogger("chatgpt_core")
 
 def _get_file_download_url(self, file_id: str) -> str:
-    """获取文件下载地址。"""
+    """Resolve a file id to a downloadable URL via the files endpoint."""
     path = f"/backend-api/files/{file_id}/download"
     response = self.session.get(self.base_url + path, headers=self._headers(path, {"Accept": "application/json"}),
                                 timeout=60)
@@ -15,7 +15,7 @@ def _get_file_download_url(self, file_id: str) -> str:
     return data.get("download_url") or data.get("url") or ""
 
 def _get_attachment_download_url(self, conversation_id: str, attachment_id: str) -> str:
-    """通过 conversation 附件接口获取下载地址。"""
+    """Resolve a conversation attachment (sediment) id to a downloadable URL."""
     path = f"/backend-api/conversation/{conversation_id}/attachment/{attachment_id}/download"
     response = self.session.get(self.base_url + path, headers=self._headers(path, {"Accept": "application/json"}),
                                 timeout=60)
@@ -24,7 +24,7 @@ def _get_attachment_download_url(self, conversation_id: str, attachment_id: str)
     return data.get("download_url") or data.get("url") or ""
 
 def _resolve_image_urls(self, conversation_id: str, file_ids: list[str], sediment_ids: list[str]) -> list[str]:
-    """把图片结果 id 解析成可下载 URL。"""
+    """Convert image result ids (file or sediment) into downloadable URLs."""
     urls = []
     skip_patterns = {"file_upload"}
     for file_id in file_ids:

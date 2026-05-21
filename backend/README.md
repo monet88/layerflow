@@ -109,3 +109,59 @@ curl -i -X POST http://127.0.0.1:8000/v1/images/edits \
   -F "prompt=draw a red hat" \
   -F "model=gpt-image-2"
 ```
+
+---
+
+## Phase 8: ChatGPT Web Provider
+
+The `chatgpt_web` provider drives the full reverse-proxy flow from a real
+account: bootstrap → sentinel chat-requirements + PoW → 3-step Azure
+upload → prepare conduit → start SSE → poll conversation → resolve file
+URL → download bytes. The synchronous chatgpt_core pipeline runs inside
+`asyncio.to_thread` so two concurrent edits do not serialize on PoW.
+
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+- `tests/test_backend.py` — health, models, session CRUD, mock provider, upload size cap.
+- `tests/test_image_upload_security.py` — `_decode_image_base64` rejects path-traversal input.
+- `tests/test_chatgpt_web_provider.py` — upstream 401/403/429/500 + poll timeout map to typed errors.
+- `tests/test_provider_concurrency.py` — two concurrent edits run in parallel via `asyncio.to_thread`.
+
+### Manual Integration Test (real ChatGPT account)
+
+1. Set `IMAGE_PROVIDER=chatgpt_web` and a strong `APP_API_KEY` in `.env`.
+2. Start the server: `uvicorn main:app --port 8000`.
+3. Capture an access token from `https://chatgpt.com/api/auth/session`
+   (browser DevTools → Network → `session` response → `accessToken`).
+4. Store the token via `POST /auth/chatgpt/session` (curl example above).
+5. Submit an edit with a `mask` field and expect 120-150s wall time. Response shape:
+   ```json
+   {"created": 1700000000, "data": [{"b64_json": "iVBORw0…"}]}
+   ```
+
+Failure cases to verify:
+- Expired token → `401` with `{"detail": {"code": "provider_auth_failed", …}}`.
+- Subscription / session issue → `403` with `provider_reconnect_required`.
+- More than 5 image edits/minute per `X-User-Id` → `429` with `provider_rate_limited`.
+
+### Deployment Notes
+
+- `docker-compose.yml` defaults `ENV=production`, which makes the
+  `APP_API_KEY=dev-app-key` default fail fast at startup. Override
+  `APP_API_KEY` in the host environment before `docker-compose up`.
+- `RATE_LIMIT_AUTH` and `RATE_LIMIT_IMAGES` are slowapi expressions
+  (`5/minute`, `10/minute`, …); they apply per `X-User-Id` not per IP, so
+  multiple installs behind a NAT each get their own bucket.
+- SQLite runs in WAL mode with a 5s `busy_timeout` so the FastAPI
+  threadpool can write tokens without lock conflicts. The data directory
+  must be writable by the container user.
+- `requirements-dev.txt` is dev-only (pytest + pytest-asyncio); the
+  Docker image only installs `requirements.txt`.
+- Logs are JSON via `app/core/logging.py`; the redaction filter masks
+  `Bearer …`, `access_token`, and `Authorization` fields. Never log raw
+  access tokens.

@@ -7,7 +7,7 @@ effort: 58h
 branch: main
 tags: [uxp, photoshop, ai, react, typescript, falai, replicate, chatgpt, fastapi]
 created: 2026-05-19
-updated: 2026-05-20
+updated: 2026-05-21
 ---
 
 # InpaintKit — Implementation Plan
@@ -54,8 +54,8 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
 | 7 | Backend MVP (Fork chatgpt2api) | 5h | complete | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
-| 8 | Backend ChatGPT Provider (Adapt) | 4h | pending | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
-| 9 | Plugin ChatGPT Integration | 7h | pending | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
+| 8 | Backend ChatGPT Provider (Adapt) | 4h | complete | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
+| 9 | Plugin ChatGPT Integration | 7h | in-progress | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
 
 ### Sprint 4: Distribution
 

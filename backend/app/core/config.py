@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     CHATGPT_BASE_URL: str = "https://chatgpt.com"
     CHATGPT_PROXY: Optional[str] = None
     ALLOWED_ORIGINS: str = "app://uxp-internal,http://localhost:8000"
+    RATE_LIMIT_AUTH: str = "10/minute"
+    RATE_LIMIT_IMAGES: str = "5/minute"
 
     @field_validator("ENCRYPTION_KEY")
     @classmethod

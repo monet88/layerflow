@@ -1,5 +1,6 @@
 from typing import Any, Dict, Optional
 from app.core.config import settings
+from app.core.errors import ProviderAuthError
 from app.providers.base import BaseImageProvider
 from app.providers.mock_provider import MockImageProvider
 from app.services.user_session_service import UserSessionService
@@ -17,9 +18,8 @@ class ImageEditService:
         elif provider_name == "chatgpt_web":
             access_token = self.session_service.get_token(user_id)
             if not access_token:
-                raise ValueError(
-                    f"No active session found for user_id: {user_id}. "
-                    "Please connect your ChatGPT account first."
+                raise ProviderAuthError(
+                    f"No active session for user_id={user_id}"
                 )
             from app.providers.chatgpt_web import ChatGPTWebProvider
             return ChatGPTWebProvider(access_token=access_token, proxy=settings.CHATGPT_PROXY)

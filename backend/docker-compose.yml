@@ -4,6 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - ENV=${ENV:-production}
       - APP_API_KEY=${APP_API_KEY:-dev-app-key}
       - IMAGE_PROVIDER=${IMAGE_PROVIDER:-mock}
       - SQLITE_PATH=/app/data/app.sqlite
@@ -12,6 +13,8 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CHATGPT_PROXY=${CHATGPT_PROXY}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-app://uxp-internal,http://localhost:8000}
+      - RATE_LIMIT_AUTH=${RATE_LIMIT_AUTH:-10/minute}
+      - RATE_LIMIT_IMAGES=${RATE_LIMIT_IMAGES:-5/minute}
     volumes:
       - ./data:/app/data
     restart: always

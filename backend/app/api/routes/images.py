@@ -1,8 +1,10 @@
 from typing import Optional
 import logging
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException, status
 from app.api.deps import verify_app_api_key, get_user_id
 from app.core.config import settings
+from app.core.errors import AppError, raise_http_from_app_error
+from app.core.rate_limit import limiter
 from app.services.image_edit_service import ImageEditService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +39,9 @@ async def _read_upload_with_budget(upload: UploadFile, max_bytes: int) -> bytes:
     return data
 
 @router.post("/v1/images/edits", dependencies=[Depends(verify_app_api_key)])
+@limiter.limit(settings.RATE_LIMIT_IMAGES)
 async def edit_image_endpoint(
+    request: Request,
     image: UploadFile = File(...),
     mask: Optional[UploadFile] = File(None),
     prompt: str = Form(...),
@@ -86,15 +90,17 @@ async def edit_image_endpoint(
             size=size,
         )
         return result
+    except AppError as exc:
+        raise_http_from_app_error(exc)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
+            detail=str(exc),
         )
     except NotImplementedError as exc:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(exc)
+            detail=str(exc),
         )
     except Exception as exc:
         logger.exception("Image generation failed: %s", exc)
