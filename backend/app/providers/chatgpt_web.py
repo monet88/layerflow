@@ -211,39 +211,48 @@ class ChatGPTWebProvider(BaseImageProvider):
                     pass
 
     def _download_first(self, urls: list[str]) -> bytes:
+        from urllib.parse import urlparse
         last_exc: Optional[Exception] = None
         for url in urls:
+            response = None
             try:
-                is_external = url.startswith("http") and not url.startswith(self.api_client.base_url)
+                parsed_url = urlparse(url)
+                parsed_base = urlparse(self.api_client.base_url)
+                is_external = bool(parsed_url.netloc and parsed_url.netloc != parsed_base.netloc)
                 auth = None
                 if is_external:
                     auth = self.api_client.session.headers.pop("Authorization", None)
                 try:
                     response = self.api_client.session.get(url, stream=True, timeout=120)
+                    if 200 <= response.status_code < 300:
+                        chunks = []
+                        total_bytes = 0
+                        max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
+                        for chunk in response.iter_content():
+                            total_bytes += len(chunk)
+                            if total_bytes > max_bytes:
+                                raise RuntimeError(
+                                    f"Download size exceeded maximum allowed budget of {settings.MAX_UPLOAD_MB}MB"
+                                )
+                            chunks.append(chunk)
+                        content = b"".join(chunks)
+                        if content:
+                            return content
+                    last_exc = RuntimeError(
+                        f"download failed: status={response.status_code}"
+                    )
                 finally:
                     if auth is not None:
                         self.api_client.session.headers["Authorization"] = auth
-
-                if 200 <= response.status_code < 300:
-                    chunks = []
-                    total_bytes = 0
-                    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
-                    for chunk in response.iter_content():
-                        total_bytes += len(chunk)
-                        if total_bytes > max_bytes:
-                            raise RuntimeError(
-                                f"Download size exceeded maximum allowed budget of {settings.MAX_UPLOAD_MB}MB"
-                            )
-                        chunks.append(chunk)
-                    content = b"".join(chunks)
-                    if content:
-                        return content
-                last_exc = RuntimeError(
-                    f"download failed: status={response.status_code}"
-                )
             except Exception as exc:
                 last_exc = exc
                 continue
+            finally:
+                if response is not None:
+                    try:
+                        response.close()
+                    except Exception:
+                        pass
         raise ProviderError(f"Failed to download generated image: {last_exc}")
 
     @staticmethod

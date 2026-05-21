@@ -38,7 +38,10 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
     ensure_ok(response, path)
     upload_meta = response.json()
     upload_url = upload_meta["upload_url"]
-    is_external = upload_url.startswith("http") and not upload_url.startswith(self.base_url)
+    from urllib.parse import urlparse
+    parsed_url = urlparse(upload_url)
+    parsed_base = urlparse(self.base_url)
+    is_external = bool(parsed_url.netloc and parsed_url.netloc != parsed_base.netloc)
     auth = None
     if is_external:
         auth = self.session.headers.pop("Authorization", None)

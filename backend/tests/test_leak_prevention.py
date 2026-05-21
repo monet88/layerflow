@@ -231,3 +231,63 @@ def test_upload_image_keeps_auth_header_for_internal_url():
         
     assert auth_header_present[0]
     assert "Authorization" in client.session.headers
+
+def test_upload_image_strips_auth_header_for_attacker_domain():
+    client = OpenAIBackendAPI(access_token="test_token")
+    client.base_url = "https://chatgpt.com"
+    client.session.headers["Authorization"] = "Bearer test_token"
+    
+    mock_post_response = MagicMock()
+    mock_post_response.status_code = 200
+    mock_post_response.json.return_value = {
+        "file_id": "file_123",
+        "upload_url": "https://chatgpt.com.attacker.net/upload"
+    }
+    
+    mock_put_response = MagicMock()
+    mock_put_response.status_code = 200
+    
+    auth_header_present = []
+    
+    def mock_put(url, **kwargs):
+        auth_header_present.append("Authorization" in client.session.headers)
+        return mock_put_response
+        
+    client.session.post = lambda url, **kwargs: mock_post_response
+    client.session.put = mock_put
+    
+    client._decode_image_base64 = lambda img: b"\x89PNG\r\n\x1a\n"
+    
+    from PIL import Image
+    mock_img = MagicMock()
+    mock_img.size = (10, 10)
+    mock_img.format = "PNG"
+    with patch("PIL.Image.open", return_value=mock_img), patch("time.sleep"):
+        client._upload_image("base64_data")
+        
+    assert not auth_header_present[0]
+    assert "Authorization" in client.session.headers
+
+def test_download_first_closes_response():
+    provider = ChatGPTWebProvider(access_token="test_token")
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.iter_content = lambda: [b"downloaded_bytes"]
+    
+    provider.api_client.session.get = MagicMock(return_value=mock_response)
+    
+    res = provider._download_first(["https://example.com/image.png"])
+    assert res == b"downloaded_bytes"
+    mock_response.close.assert_called_once()
+
+def test_download_first_closes_response_on_size_limit_error():
+    provider = ChatGPTWebProvider(access_token="test_token")
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.iter_content = lambda: [b"a" * (1024 * 1024)] * 25
+    
+    provider.api_client.session.get = MagicMock(return_value=mock_response)
+    
+    with pytest.raises(Exception):
+        provider._download_first(["https://example.com/image.png"])
+    mock_response.close.assert_called_once()
