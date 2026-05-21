@@ -137,13 +137,15 @@ When implementing a phase, update its frontmatter `status` to `complete` and upd
 </important>
 
 <!-- gitnexus:start -->
-<important if="you are editing, renaming, or refactoring an existing symbol (function, class, method) — or committing changes that may affect call graphs">
+# GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **layerflow** (511 symbols, 545 relationships, 0 execution flows). If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` first.
+This project is indexed by GitNexus as **layerflow** (1669 symbols, 2719 relationships, 89 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
 - **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
 - When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
@@ -176,5 +178,4 @@ This project is indexed by GitNexus as **layerflow** (511 symbols, 545 relations
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
-</important>
 <!-- gitnexus:end -->

@@ -93,6 +93,10 @@ class OpenAIBackendAPI:
         if self.access_token:
             self.session.headers["Authorization"] = f"Bearer {self.access_token}"
 
+    def close(self) -> None:
+        """Close the curl-cffi session to release resources and connection pool."""
+        self.session.close()
+
     def _build_fp(self) -> Dict[str, str]:
         """Generate static, user-specific or random browser fingerprints."""
         fp = {}

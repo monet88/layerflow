@@ -53,55 +53,66 @@ async def edit_image_endpoint(
     """
     max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
 
-    # Streaming read with budget — reject before buffering entire payload (A4 fix)
     try:
-        image_bytes = await _read_upload_with_budget(image, max_bytes)
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to read image file",
-        )
-
-    mask_bytes = None
-    if mask is not None:
+        # Streaming read with budget — reject before buffering entire payload (A4 fix)
         try:
-            mask_bytes = await _read_upload_with_budget(mask, max_bytes)
+            image_bytes = await _read_upload_with_budget(image, max_bytes)
         except HTTPException:
             raise
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to read mask file",
+                detail="Failed to read image file",
             )
 
-    try:
-        result = await image_service.edit_image(
-            image_bytes=image_bytes,
-            mask_bytes=mask_bytes,
-            prompt=prompt,
-            user_id=user_id,
-            model=model,
-            n=n,
-            size=size,
-        )
-        return result
-    except AppError as exc:
-        raise_http_from_app_error(exc)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
-    except NotImplementedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(exc),
-        )
-    except Exception as exc:
-        logger.exception("Image generation failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Image generation failed. Please try again later.",
-        )
+        mask_bytes = None
+        if mask is not None:
+            try:
+                mask_bytes = await _read_upload_with_budget(mask, max_bytes)
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to read mask file",
+                )
+
+        try:
+            result = await image_service.edit_image(
+                image_bytes=image_bytes,
+                mask_bytes=mask_bytes,
+                prompt=prompt,
+                user_id=user_id,
+                model=model,
+                n=n,
+                size=size,
+            )
+            return result
+        except AppError as exc:
+            raise_http_from_app_error(exc)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            )
+        except NotImplementedError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                detail=str(exc),
+            )
+        except Exception as exc:
+            logger.exception("Image generation failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Image generation failed. Please try again later.",
+            )
+    finally:
+        try:
+            await image.close()
+        except Exception:
+            pass
+        if mask is not None:
+            try:
+                await mask.close()
+            except Exception:
+                pass

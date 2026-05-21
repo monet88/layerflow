@@ -37,22 +37,30 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
     )
     ensure_ok(response, path)
     upload_meta = response.json()
-    time.sleep(0.5)
-    response = self.session.put(
-        upload_meta["upload_url"],
-        headers={
-            "Content-Type": mime_type,
-            "x-ms-blob-type": "BlockBlob",
-            "x-ms-version": "2020-04-08",
-            "Origin": self.base_url,
-            "Referer": self.base_url + "/",
-            "User-Agent": self.user_agent,
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.8",
-        },
-        data=data,
-        timeout=120,
-    )
+    upload_url = upload_meta["upload_url"]
+    is_external = upload_url.startswith("http") and not upload_url.startswith(self.base_url)
+    auth = None
+    if is_external:
+        auth = self.session.headers.pop("Authorization", None)
+    try:
+        response = self.session.put(
+            upload_url,
+            headers={
+                "Content-Type": mime_type,
+                "x-ms-blob-type": "BlockBlob",
+                "x-ms-version": "2020-04-08",
+                "Origin": self.base_url,
+                "Referer": self.base_url + "/",
+                "User-Agent": self.user_agent,
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.8",
+            },
+            data=data,
+            timeout=120,
+        )
+    finally:
+        if auth is not None:
+            self.session.headers["Authorization"] = auth
     ensure_ok(response, "image_upload")
     path = f"/backend-api/files/{upload_meta['file_id']}/uploaded"
     response = self.session.post(
