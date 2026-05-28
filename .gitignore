@@ -1,1 +1,24 @@
 .tokensave
+node_modules/
+dist/
+*.ccx
+*.log
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vite/
+
+# Python ignore
+__pycache__/
+*.pyc
+venv/
+.pytest_cache/
+backend/data/
+backend/scratch/
+
+# Harness durable layer
+harness.db
+harness.db-wal
+harness.db-shm
+scripts/bin/harness-cli

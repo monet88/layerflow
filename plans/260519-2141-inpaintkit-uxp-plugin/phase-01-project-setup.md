@@ -1,7 +1,7 @@
 ---
 title: "Phase 1: Project Setup"
 sprint: 1
-status: pending
+status: complete
 priority: P1
 effort: 3h
 depends_on: []

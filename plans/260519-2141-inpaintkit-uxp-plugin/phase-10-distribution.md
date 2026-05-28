@@ -35,6 +35,17 @@ Package the plugin as .ccx for distribution and the backend as a Docker image. W
 - Works on macOS and Windows (plugin)
 - Works on any Linux VPS (backend)
 
+**Production hardening (backend, public-facing deploy):**
+- Rate limiting on `/auth/chatgpt/session` and `/v1/images/edits` (`slowapi` or reverse-proxy level)
+- TLS termination via Caddy/Nginx in front of backend (never expose port 8000 raw)
+- Secret store: `ENCRYPTION_KEY` and `APP_API_KEY` injected via Docker secrets / env from a vault, NOT committed `.env`
+- SQLite volume permissions: `chmod 600`, host-side encryption-at-rest if compliance requires
+- Log shipping: structured JSON logs to stdout for collection (Loki / Datadog / CloudWatch)
+- Health endpoint: keep `/health` unauthenticated but document that it leaks "service is up"; add `/health/deep` (auth-gated) if DB/upstream checks needed
+- `X-User-Id` format validation: regex `^[a-zA-Z0-9_\-]{1,64}$` to prevent traversal in any future log/file output
+- Dev deps stripped from Docker image (split `requirements.txt` runtime vs `requirements-dev.txt`)
+- Upload size pre-check via `Content-Length` / `UploadFile.size` BEFORE buffering the body
+
 ## Implementation Steps
 
 1. Plugin packaging:
@@ -90,6 +101,14 @@ Package the plugin as .ccx for distribution and the backend as a Docker image. W
 - [ ] READMEs contain working curl/usage examples
 - [ ] Plugin works on PS 24, 25, 26 (macOS or Windows)
 - [ ] No secrets in any distributed file
+- [ ] Production hardening checklist (public deploy only):
+  - [ ] Rate limit configured on auth + image-edit endpoints
+  - [ ] TLS via reverse proxy; backend not exposed directly
+  - [ ] Secrets injected from vault / Docker secrets, not committed `.env`
+  - [ ] SQLite volume permissions locked (`chmod 600`)
+  - [ ] `X-User-Id` regex validation in `app/api/deps.py`
+  - [ ] Production Docker image excludes pytest / dev deps
+  - [ ] Upload size pre-checked before buffering body
 
 ## Risk Assessment
 

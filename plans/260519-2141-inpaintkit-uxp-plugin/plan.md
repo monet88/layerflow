@@ -7,7 +7,7 @@ effort: 58h
 branch: main
 tags: [uxp, photoshop, ai, react, typescript, falai, replicate, chatgpt, fastapi]
 created: 2026-05-19
-updated: 2026-05-20
+updated: 2026-05-21
 ---
 
 # InpaintKit — Implementation Plan
@@ -24,9 +24,9 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 
 | Sprint | Goal | Duration | Est. | Status |
 |--------|------|----------|------|--------|
-| 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | pending |
-| 2 | More models + UX polish | 1 week | 12h | pending |
-| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | pending |
+| 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | complete |
+| 2 | More models + UX polish | 1 week | 12h | complete |
+| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | in-progress |
 | 4 | Distribution + final polish | 0.5 week | 3h | pending |
 
 **Total estimated effort:** 56h (critical path ~36h with parallel execution)
@@ -37,25 +37,25 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
-| 1 | Project Setup | 3h | pending | [phase-01-project-setup.md](./phase-01-project-setup.md) |
-| 2 | Core UI | 5h | pending | [phase-02-core-ui.md](./phase-02-core-ui.md) |
-| 3 | Photoshop Integration | 8h | pending | [phase-03-photoshop-integration.md](./phase-03-photoshop-integration.md) |
-| 4 | Provider Architecture + fal.ai | 3h | pending | [phase-04-provider-architecture.md](./phase-04-provider-architecture.md) |
-| 5 | Generation Pipeline | 6h | pending | [phase-05-generation-pipeline.md](./phase-05-generation-pipeline.md) |
+| 1 | Project Setup | 3h | complete | [phase-01-project-setup.md](./phase-01-project-setup.md) |
+| 2 | Core UI | 5h | complete | [phase-02-core-ui.md](./phase-02-core-ui.md) |
+| 3 | Photoshop Integration | 8h | complete | [phase-03-photoshop-integration.md](./phase-03-photoshop-integration.md) |
+| 4 | Provider Architecture + fal.ai | 3h | complete | [phase-04-provider-architecture.md](./phase-04-provider-architecture.md) |
+| 5 | Generation Pipeline | 6h | complete | [phase-05-generation-pipeline.md](./phase-05-generation-pipeline.md) |
 
 ### Sprint 2: More Models + Polish
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
-| 6 | Models, History, Resolution Bucketing | 12h | pending | [phase-06-models-and-polish.md](./phase-06-models-and-polish.md) |
+| 6 | Models, History, Resolution Bucketing | 12h | complete | [phase-06-models-and-polish.md](./phase-06-models-and-polish.md) |
 
 ### Sprint 3: ChatGPT Backend + GPT Image 2
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
-| 7 | Backend MVP (Fork chatgpt2api) | 5h | pending | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
-| 8 | Backend ChatGPT Provider (Adapt) | 4h | pending | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
-| 9 | Plugin ChatGPT Integration | 7h | pending | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
+| 7 | Backend MVP (Fork chatgpt2api) | 5h | complete | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
+| 8 | Backend ChatGPT Provider (Adapt) | 4h | complete | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
+| 9 | Plugin ChatGPT Integration | 7h | in-progress | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
 
 ### Sprint 4: Distribution
 

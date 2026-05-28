@@ -1,10 +1,11 @@
 ---
 title: "Phase 9: Plugin ChatGPT Integration"
 sprint: 3
-status: pending
-priority: P2
+status: in-progress
+priority: P1
 effort: 7h
 depends_on: [phase-05, phase-06, phase-08]
+updated: 2026-05-21
 ---
 
 # Phase 9: Plugin ChatGPT Integration
@@ -12,6 +13,7 @@ depends_on: [phase-05, phase-06, phase-08]
 ## Context Links
 
 - [plan.md](./plan.md) — Overview
+- [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) — Backend implementation (completed)
 - [/home/monet/dev/cc-switch/src/components/providers/forms/hooks/useManagedAuth.ts](file:///home/monet/dev/cc-switch/src/components/providers/forms/hooks/useManagedAuth.ts) — Device code polling pattern (PORT SOURCE)
 - [/home/monet/dev/cc-switch/src/components/providers/forms/CodexOAuthSection.tsx](file:///home/monet/dev/cc-switch/src/components/providers/forms/CodexOAuthSection.tsx) — OAuth UI reference (PORT SOURCE)
 - [/home/monet/dev/cc-switch/src/lib/api/auth.ts](file:///home/monet/dev/cc-switch/src/lib/api/auth.ts) — Device code response types (PORT SOURCE)
@@ -32,6 +34,44 @@ depends_on: [phase-05, phase-06, phase-08]
 - cc-switch manages multiple accounts → InpaintKit manages single account
 - cc-switch uses React Query → InpaintKit uses simple useState + useEffect
 - Polling interval logic identical: `Math.max((response.interval + 3), 8) * 1000`ms
+
+## Backend API Contract (Phase 8 Actual)
+
+Phase 8 backend is live. Plugin must conform to these contracts:
+
+**Session registration:**
+```
+POST {backend_url}/auth/chatgpt/session
+Headers: Authorization: Bearer {APP_API_KEY}, X-User-Id: {user_id}
+Body: { "access_token": "...", "refresh_token": "..." }
+Response 200: { "status": "ok", "user_id": "..." }
+```
+
+**Image edit:**
+```
+POST {backend_url}/v1/images/edits
+Headers: Authorization: Bearer {APP_API_KEY}, X-User-Id: {user_id}
+Body: multipart/form-data { image, mask?, prompt, model, n, size }
+Response 200: { "data": [{ "b64_json": "...", "revised_prompt": "..." }] }
+```
+
+**Error codes from backend (stable `code` field in JSON body):**
+
+| HTTP Status | `code` | Meaning | Plugin action |
+|-------------|--------|---------|---------------|
+| 401 | `provider_auth_failed` | access_token invalid/expired | Show "Session expired, sign in again" → clear token → show login |
+| 401 | `missing_session` | No session registered for user_id | Trigger session registration flow |
+| 403 | `provider_reconnect_required` | ChatGPT requires browser re-auth | Show "Re-authorize in ChatGPT" message |
+| 429 | `provider_rate_limited` | ChatGPT rate limit hit | Show "Rate limited, try again in X seconds" |
+| 408 | `provider_timeout` | Backend 150s timeout exceeded | Show "Generation timed out, try again" |
+| 413 | — | Upload too large | Show "Image too large (max 10MB)" |
+| 429 | — (slowapi) | Backend rate limit (5/min images, 10/min auth) | Show "Too many requests" with Retry-After |
+| 500 | `provider_error` | Generic ChatGPT failure | Show backend error message |
+
+**Rate limits (backend enforced):**
+- `/auth/chatgpt/session`: 10 requests/minute per user_id
+- `/v1/images/edits`: 5 requests/minute per user_id
+- Keyed by `X-User-Id` header
 
 ## Overview
 
@@ -81,30 +121,47 @@ The plugin handles login (simple REST to auth.openai.com). The backend handles t
   - Handle 180s timeout (XHR, not fetch)
   - Progress: "Uploading..." → "Generating (this may take 2+ minutes)..."
   - Backend URL validation: reject non-HTTPS URLs (except localhost) at settings save time
+  - Map backend error `code` to user-facing messages (see Backend API Contract above)
+  - On `provider_auth_failed` or `missing_session`: auto-clear local token → show re-login prompt
+  - On `provider_reconnect_required`: show specific "Re-authorize in ChatGPT settings" message
+  - On `provider_rate_limited`: show wait time from `Retry-After` header if present
 - Settings UI updates
   - Backend URL input field (default: http://localhost:8000)
   - Backend API key input field
   - ChatGPT sign-in section (conditional, shown when ChatGPT provider selected)
   - Connection status badge (connected/disconnected/expired)
+- Model registry entry
+  - Add `gpt-image-2-chatgpt` model pointing to `chatgpt-backend` provider
+  - Capabilities: `['generate', 'inpaint']`
+  - Resolutions: `[1024, 1536, 2048]`
+  - costHint: "ChatGPT subscription" (no per-image cost)
+  - Distinct from existing `gpt-image-2` (fal.ai) in model picker
 
 **Non-functional:**
 - OAuth tokens never logged or exposed in UI beyond status
 - Polling cleanup on component unmount (clear intervals)
 - Graceful degradation: if backend unreachable, show clear error
 - Device code flow works entirely from UXP plugin (no backend needed for auth)
+- XHR timeout set to 180s (covers backend's 150s provider timeout + network overhead)
 
 ## Architecture
 
 ```
 src/
 ├── providers/
-│   └── backend-provider.ts        # POST to backend /v1/images/edits
+│   ├── backend-provider.ts        # POST to backend /v1/images/edits
+│   ├── backend-response.ts        # assertImageEditsResponse() shape validator (RT9)
+│   ├── model-registry.ts          # Updated: add gpt-image-2-chatgpt entry
+│   └── provider-registry.ts       # Updated: chatgpt-backend factory
 ├── auth/
 │   ├── codex-device-code.ts       # OAuth device code flow logic
 │   ├── token-manager.ts           # Store/refresh/validate tokens
-│   └── oauth-types.ts             # TypeScript types for OAuth responses
+│   ├── oauth-types.ts             # TypeScript types for OAuth responses
+│   └── backend-url.ts             # validateBackendUrl() HTTPS enforcement (RT1)
 ├── constants/
 │   └── oauth.ts                   # Configurable CODEX_CLIENT_ID, AUTH_BASE_URL, scopes
+├── services/
+│   └── generation-service.ts      # Updated: chatgpt-backend progress messages + error mapping
 ├── components/
 │   ├── settings-dialog.tsx        # Updated: backend URL, ChatGPT section
 │   ├── chatgpt-login-modal.tsx    # Device code display + polling UI
@@ -115,53 +172,91 @@ src/
 
 ## Implementation Steps
 
-1. Create `oauth-types.ts` with device code response types
+### Step 1: OAuth types + constants
+1. Create `src/auth/oauth-types.ts` with device code response types
 2. Create `src/constants/oauth.ts` — configurable CODEX_CLIENT_ID, AUTH_BASE_URL, default scopes
-3. Implement `codex-device-code.ts`:
+
+### Step 2: Device code flow logic
+3. Implement `src/auth/codex-device-code.ts`:
    - `startDeviceAuth()` → POST to auth.openai.com/deviceauth/usercode
    - `pollForToken(device_code)` → poll auth.openai.com/deviceauth/token
      - Handle `authorization_pending` → continue polling
      - Handle `slow_down` → increase interval by 5s, continue polling (RFC 8628 compliance)
      - Handle `expired_token` / `access_denied` → stop, show error
    - `refreshToken(refresh_token)` → POST to auth.openai.com/oauth/token
-4. Implement `token-manager.ts`:
+
+### Step 3: Token manager
+4. Implement `src/auth/token-manager.ts`:
    - Store tokens in secureStorage (access_token, refresh_token, expires_at)
    - `getValidToken()` → auto-refresh if expiring within 5 min; **throws `TokenExpiredError` on refresh failure** (never return stale token)
    - `isConnected()` → check if valid token exists
    - `disconnect()` → clear stored tokens
-5. Implement `chatgpt-login-modal.tsx`:
-   - Large user_code display (mono font)
-   - Copy button with check animation
-   - "Open ChatGPT to authorize" button (shell.openExternal)
-   - Polling spinner + "Waiting for authorization..."
-   - Error/retry state
-   - Cancel button (stops polling)
-   - **useEffect cleanup:** store interval/timeout handles in refs, clearInterval + clearTimeout on unmount
-6. Implement `connection-status.tsx`:
-   - Green badge "Connected" + "Expires in X days"
-   - Red badge "Expired" or "Disconnected"
-   - "Sign in" / "Disconnect" action buttons
-7. Update `settings-dialog.tsx`:
-   - Add "ChatGPT (Subscription)" provider option
-   - Show backend URL + API key inputs when ChatGPT selected
-   - Show ChatGPT sign-in section below
-8. Implement `backend-provider.ts`:
-   - Implements same ProviderInterface as fal.ai/Replicate
-   - On first use after OAuth: POST `{backend_url}/auth/chatgpt/session` to register token server-side
-   - Generation: POST multipart to `{backend_url}/v1/images/edits`
-   - Include: image, mask (optional), prompt, model (NO access_token — backend retrieves it by user_id)
+
+### Step 4: Backend provider implementation
+5. Implement `src/providers/backend-provider.ts`:
+   - Implements `Provider` interface (same as fal.ai/Replicate)
+   - `registerSession(backendUrl, appApiKey, userId, tokens)` → POST `/auth/chatgpt/session`
+   - `generate()` / `inpaint()` → POST multipart to `/v1/images/edits`
    - Headers: `Authorization: Bearer {app_api_key}`, `X-User-Id: {user_id}`
-   - XHR with 180s timeout (not fetch — too unreliable for long requests)
-   - Parse OpenAI-compatible response — `assertImageEditsResponse()` runs before consumption (RT9): require object → `data: array` → first entry has `b64_json: string` OR `url: string`. Throw `ProviderResponseError` with the offending payload (sanitized) on shape mismatch
-   - Pre-flight: call `getValidToken()` — catch `TokenExpiredError` → show "Session expired" immediately (avoid 150s wait)
-   - Pre-flight: call `validateBackendUrl(backendUrl)` (see below) — fail fast with a settings-pointed error if URL is malformed or non-HTTPS (RT1)
-9. Register backend provider in provider-registry
-10. Update generation pipeline:
-    - Detect ChatGPT provider → use backend provider
-    - Progress message: "Generating with GPT Image 2 (this may take 2+ minutes)..."
-    - Handle backend-specific errors (session expired, rate limited)
-11. Add manifest network domains: `auth.openai.com`, backend URL configurable
-12. End-to-end test: OAuth login → generate → verify Smart Object placed
+   - XHR with 180s timeout (not fetch — UXP fetch unreliable for long requests >5MB)
+   - Response validation via `assertImageEditsResponse()` (RT9)
+   - Pre-flight: `getValidToken()` — catch `TokenExpiredError` → throw `AuthError` immediately
+   - Pre-flight: `validateBackendUrl(backendUrl)` — fail fast (RT1)
+   - Error mapping from backend `code` field:
+     - `provider_auth_failed` / `missing_session` → `AuthError`
+     - `provider_reconnect_required` → new `ReconnectRequiredError`
+     - `provider_rate_limited` → `RateLimitError`
+     - `provider_timeout` → `ProviderError` with timeout message
+6. Create `src/providers/backend-response.ts` — `assertImageEditsResponse()` validator
+7. Create `src/auth/backend-url.ts` — `validateBackendUrl()` (HTTPS enforcement)
+
+### Step 5: Model registry + provider registry
+8. Add `gpt-image-2-chatgpt` entry to `model-registry.ts`:
+   - providerId: `'chatgpt-backend'`
+   - capabilities: `['generate', 'inpaint']`
+   - endpointByCapability: `{ generate: 'gpt-image-2', inpaint: 'gpt-image-2' }`
+   - resolutions: `[1024, 1536, 2048]`
+   - costHint: `'ChatGPT sub'`
+9. Register `chatgpt-backend` in `provider-registry.ts` — factory creates `BackendProvider` with credentials
+
+### Step 6: Generation pipeline update
+10. Update progress messages in `generation-service.ts`:
+    - Detect `chatgpt-backend` provider → show "Generating with GPT Image 2 (this may take 2+ minutes)..."
+    - Map `ReconnectRequiredError` → user-facing "ChatGPT requires re-authorization in browser"
+    - Existing `AuthError` / `RateLimitError` handling already works via `userMessageFor()`
+
+### Step 7: Login UI components
+11. Implement `src/components/chatgpt-login-modal.tsx`:
+    - Large user_code display (mono font, sp-body size-XL)
+    - Copy button with checkmark animation
+    - "Open ChatGPT to authorize" button (shell.openExternal)
+    - Polling spinner + "Waiting for authorization..."
+    - Error/retry state
+    - Cancel button (stops polling)
+    - **useEffect cleanup:** store interval/timeout handles in refs, clearInterval + clearTimeout on unmount
+12. Implement `src/components/connection-status.tsx`:
+    - Green badge "Connected" + "Expires in X days"
+    - Red badge "Expired" or "Disconnected"
+    - "Sign in" / "Disconnect" action buttons
+
+### Step 8: Settings dialog update
+13. Update `src/components/settings-dialog.tsx`:
+    - Add "ChatGPT (Subscription)" section
+    - Show backend URL + API key inputs
+    - Show ChatGPT sign-in section below (connection-status + login trigger)
+    - `validateBackendUrl()` on save — display error inline, refuse to persist bad URL
+14. Update `src/storage/secure-storage.ts`:
+    - Add helpers: `getChatGPTTokens()`, `setChatGPTTokens()`, `clearChatGPTTokens()`
+
+### Step 9: Manifest + final wiring
+15. Add `auth.openai.com` to manifest.json network domains
+16. Add `launchProcess.schemes: ["https"]` to manifest for shell.openExternal
+17. Verify existing `http://localhost:8000` domain entry covers backend dev
+
+### Step 10: Integration verification
+18. Typecheck: `npm run typecheck` passes
+19. Build: `npm run build` passes
+20. Manual test flow (deferred to real token): OAuth login → session register → generate → Smart Object placed
 
 ## Backend URL Validation (RT1)
 
@@ -318,13 +413,40 @@ Note: This is the FULL domains list at Phase 9. Equals Phase 1 manifest domains 
 - [ ] Backend provider sends request and receives b64_json
 - [ ] 180s timeout handled without plugin crash
 - [ ] Backend unreachable shows clear error message
-- [ ] Full flow: login → select area → generate → Smart Object layer
+- [ ] Backend error codes mapped correctly: `provider_auth_failed` → re-login prompt, `provider_reconnect_required` → specific message, `provider_rate_limited` → retry message
+- [ ] `gpt-image-2-chatgpt` model appears in model picker, distinct from fal.ai `gpt-image-2`
+- [ ] Session registration (POST /auth/chatgpt/session) succeeds after OAuth
+- [ ] Typecheck passes (`npm run typecheck`)
+- [ ] Build passes (`npm run build`)
+- [ ] Full flow: login → select area → generate → Smart Object layer (manual, deferred)
 
 ## Risk Assessment
 
 - auth.openai.com endpoints may change — keep URLs in config constants
-- User must manually enable "Device code authorization for Codex" — document clearly
+- User must manually enable "Device code authorization for Codex" — document clearly in UI tooltip
 - Token refresh may fail silently — show "session expired, please sign in again"
 - Backend URL `http://` outside localhost — blocked by `validateBackendUrl()` (RT1); MITM cannot trick plugin into sending APP_API_KEY or OAuth tokens over plaintext
 - Backend response shape drift — `assertImageEditsResponse()` raises a clean `ProviderResponseError` instead of unguarded property access (RT9)
+- Backend rate limit (5/min) may surprise users generating quickly — show `Retry-After` value in UI
+- Backend `provider_reconnect_required` (403) means ChatGPT session invalidated server-side — user must re-auth in browser, no plugin-side fix possible
 - UXP shell.openExternal requires manifest `launchProcess.schemes: ["https"]`
+- 180s XHR timeout vs UXP timeout behavior — test on both macOS + Windows (UXP may have platform-specific XHR limits)
+
+## Todo List
+
+- [ ] Step 1: OAuth types + constants
+- [ ] Step 2: Device code flow logic
+- [ ] Step 3: Token manager
+- [ ] Step 4: Backend provider + response validator + URL validator
+- [ ] Step 5: Model registry + provider registry wiring
+- [ ] Step 6: Generation pipeline update
+- [ ] Step 7: Login UI components
+- [ ] Step 8: Settings dialog update + secure-storage helpers
+- [ ] Step 9: Manifest domains + launchProcess
+- [ ] Step 10: Typecheck + build + manual verification
+
+## Next Steps
+
+- Phase 10 (Distribution) depends on Phase 9 completion
+- Manual integration test with real ChatGPT token after all code compiles
+- Consider UX for "first time setup" flow: Settings → Backend URL → OAuth → Generate

@@ -1,0 +1,55 @@
+{
+  "manifestVersion": 5,
+  "id": "com.inpaintkit.plugin",
+  "name": "InpaintKit",
+  "version": "1.0.0",
+  "main": "index.html",
+  "icons": [
+    {
+      "width": 23,
+      "height": 23,
+      "path": "assets/icons/icon.png",
+      "scale": [1, 2],
+      "theme": ["dark", "light", "darkest", "lightest", "medium"]
+    }
+  ],
+  "host": [
+    {
+      "app": "PS",
+      "minVersion": "24.0.0"
+    }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "inpaintkitPanel",
+      "label": { "default": "InpaintKit" },
+      "minimumSize": { "width": 300, "height": 400 },
+      "maximumSize": { "width": 800, "height": 1200 },
+      "preferredDockedSize": { "width": 360, "height": 640 },
+      "icons": [
+        { "width": 23, "height": 23, "path": "assets/icons/icon.png", "scale": [1, 2] }
+      ]
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": [
+        "https://api.openai.com",
+        "https://auth.openai.com",
+        "https://fal.run",
+        "https://fal.ai",
+        "https://storage.googleapis.com",
+        "https://v3.fal.media",
+        "https://api.replicate.com",
+        "https://replicate.delivery",
+        "http://localhost:8000"
+      ]
+    },
+    "localFileSystem": "request",
+    "clipboard": "readAndWrite",
+    "launchProcess": {
+      "schemes": ["https"]
+    }
+  }
+}
