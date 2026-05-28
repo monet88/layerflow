@@ -382,6 +382,8 @@ Step 7: Download Image
 
 ### Device Code OAuth (Plugin Side)
 
+Plugin-side implementation now uses the auth endpoints above directly, stores `accessToken` / `refreshToken` in plugin secure storage, and registers the active ChatGPT session with the backend separately. Per-image edit requests use the backend API key plus `X-User-Id`; the OAuth access token is not sent on every image edit request.
+
 From cc-switch source (`src/lib/api/auth.ts`):
 
 **Provider:** `"codex_oauth"`
@@ -398,11 +400,12 @@ interface ManagedAuthDeviceCodeResponse {
 }
 ```
 
-**Polling:** `interval + 3` seconds (minimum 8s). Stop when `expires_in` reached.
+**Polling:** `interval + 3` seconds (minimum 8s). On `slow_down` or HTTP 429, increase the wait by 5s before retrying. Stop when `expires_in` reached.
 
 **Endpoints (from research report):**
-- Device code request: `POST auth.openai.com/deviceauth/usercode`
-- Token poll: `POST auth.openai.com/deviceauth/token`
+- Device code request: `POST auth.openai.com/api/accounts/deviceauth/usercode`
+- Token poll: `POST auth.openai.com/api/accounts/deviceauth/token`
+- Token refresh: `POST auth.openai.com/oauth/token`
 - Client ID: `app_EMoamEEZ73f0CkXaXp7hrann` (Codex public client — configurable)
 
 ---

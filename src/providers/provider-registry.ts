@@ -1,6 +1,7 @@
 // Provider registry: maps a ProviderId (and optionally a model id) to a Provider instance.
 // Sprint 1 ships fal.ai; Sprint 2 adds Replicate; Sprint 3 will add the ChatGPT backend.
 
+import { ChatGPTBackendProvider } from './backend-provider';
 import { FalAIProvider } from './falai-provider';
 import { ReplicateProvider } from './replicate-provider';
 import { providerIdForModel } from './model-registry';
@@ -33,11 +34,23 @@ export function getProvider(id: ProviderId, credentials: ProviderCredentials): P
       }
       return new ReplicateProvider(key);
     }
-    case 'chatgpt-backend':
-      throw new ProviderError(
-        'ChatGPT backend provider is not implemented yet (Sprint 3).',
-        'chatgpt-backend',
-      );
+    case 'chatgpt-backend': {
+      const backendUrl = credentials.chatgptBackendUrl;
+      if (!backendUrl) {
+        throw new ProviderError(
+          'ChatGPT backend URL not configured. Open Settings and add it.',
+          'chatgpt-backend',
+        );
+      }
+      const apiKey = credentials.chatgptBackendApiKey;
+      if (!apiKey) {
+        throw new ProviderError(
+          'ChatGPT backend API key not configured. Open Settings and add it.',
+          'chatgpt-backend',
+        );
+      }
+      return new ChatGPTBackendProvider({ backendUrl, apiKey });
+    }
     default: {
       const exhaustive: never = id;
       throw new Error(`Unknown provider id: ${String(exhaustive)}`);

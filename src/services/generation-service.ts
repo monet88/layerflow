@@ -295,7 +295,11 @@ export async function runInpaint(opts: PipelineOptions): Promise<void> {
       ? referenceImages?.filter((b) => b && b.length > 0)
       : undefined;
 
-    emitProgress(onProgress, 'uploading', 45, 'Uploading to AI...');
+    const uploadMessage =
+      providerId === 'chatgpt-backend'
+        ? 'Uploading image to GPT Image 2 (this may take 2+ minutes)...'
+        : 'Uploading to AI...';
+    emitProgress(onProgress, 'uploading', 45, uploadMessage);
     let results: ResultItem[];
     try {
       results = await provider.inpaint({
@@ -303,6 +307,8 @@ export async function runInpaint(opts: PipelineOptions): Promise<void> {
         model: endpoint,
         sourceImage,
         maskImage: maskResult.data,
+        maskWidth: maskResult.width,
+        maskHeight: maskResult.height,
         width: bucket,
         height: bucket,
         referenceImages: refs,

@@ -19,7 +19,7 @@ AI image editing plugin for Adobe Photoshop — inpainting, outpainting, and gen
 │                                                          │
 │  Backend Provider (heavy, 120-150s):                     │
 │    POST backend:8000/v1/images/edits                     │
-│    + access_token from device code OAuth                 │
+│    + X-User-Id + backend API key after session register  │
 │                                                          │
 └────────────────────────┬─────────────────────────────────┘
                          │
@@ -105,24 +105,24 @@ AI image editing plugin for Adobe Photoshop — inpainting, outpainting, and gen
 
 **Goal**: Add GPT Image 2 via ChatGPT subscription (backend server)  
 **Duration**: 1.5 weeks  
-**Deliverable**: Full ChatGPT OAuth + backend proxy + GPT Image 2 generation
+**Deliverable**: Full ChatGPT OAuth + backend proxy + GPT Image 2 selection-based editing
 
 | Phase | Task | Est. | Status |
 |-------|------|------|--------|
-| 3.1 | Backend MVP (FastAPI scaffold, health, models, Docker) | 3h | pending |
-| 3.2 | Backend auth (per-user session storage, app API key) | 2h | pending |
-| 3.3 | Backend /v1/images/edits endpoint (mock provider) | 2h | pending |
-| 3.4 | Backend ChatGPT Web provider (port chatgpt2api logic) | 6h | pending |
-| 3.5 | Backend tests (pytest, all endpoints) | 2h | pending |
-| 3.6 | Plugin — Device Code OAuth flow (auth.openai.com/codex/device) | 3h | pending |
-| 3.7 | Plugin — OAuth UI (user_code display, polling indicator, status) | 2h | pending |
-| 3.8 | Plugin — Backend provider (POST backend/v1/images/edits, 150s timeout) | 2h | pending |
-| 3.9 | Plugin — Settings update (backend URL config, ChatGPT sign-in section) | 2h | pending |
-| 3.10 | Plugin — Token refresh + auto-reconnect | 2h | pending |
-| 3.11 | End-to-end testing: OAuth → backend → GPT Image 2 → PS layer | 3h | pending |
+| 3.1 | Backend MVP (FastAPI scaffold, health, models, Docker) | 3h | complete |
+| 3.2 | Backend auth (per-user session storage, app API key) | 2h | complete |
+| 3.3 | Backend /v1/images/edits endpoint (mock provider) | 2h | complete |
+| 3.4 | Backend ChatGPT Web provider (port chatgpt2api logic) | 6h | complete |
+| 3.5 | Backend tests (pytest, all endpoints) | 2h | complete |
+| 3.6 | Plugin — Device Code OAuth flow (auth.openai.com/codex/device) | 3h | complete |
+| 3.7 | Plugin — OAuth UI (user_code display, polling indicator, status) | 2h | complete |
+| 3.8 | Plugin — Backend provider (POST backend/v1/images/edits, 150s timeout) | 2h | complete |
+| 3.9 | Plugin — Settings update (backend URL config, ChatGPT sign-in section) | 2h | complete |
+| 3.10 | Plugin — Token refresh + auto-reconnect | 2h | complete |
+| 3.11 | End-to-end testing: OAuth → backend → GPT Image 2 → PS layer | 3h | complete |
 
 **Models available after Sprint 3:**
-- GPT Image 2 (ChatGPT subscription, via backend)
+- GPT Image 2 (ChatGPT subscription, via backend, selection-based editing)
 - All models from Sprint 1-2
 
 ---

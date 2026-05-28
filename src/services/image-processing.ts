@@ -24,6 +24,38 @@ export function bytesToDataUri(bytes: Uint8Array, mimeType: string = 'image/png'
   return `data:${mimeType};base64,${bytesToBase64(bytes)}`;
 }
 
+export async function rgbaToPngBytes(
+  rgba: Uint8Array,
+  width: number,
+  height: number,
+): Promise<Uint8Array> {
+  if (width <= 0 || height <= 0) {
+    throw new Error('rgbaToPngBytes: width and height must be positive.');
+  }
+  if (rgba.length !== width * height * 4) {
+    throw new Error('rgbaToPngBytes: RGBA buffer does not match width × height.');
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('rgbaToPngBytes: 2D canvas context is unavailable.');
+  }
+
+  const clamped = new Uint8ClampedArray(rgba.length);
+  clamped.set(rgba);
+  context.putImageData(new ImageData(clamped, width, height), 0, 0);
+
+  const dataUrl = canvas.toDataURL('image/png');
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) {
+    throw new Error('rgbaToPngBytes: canvas returned an invalid data URL.');
+  }
+  return base64ToBytes(dataUrl.slice(commaIndex + 1));
+}
+
 // Converts internal RGBA mask (alpha=0 = edit) to provider RGBA mask (white=edit).
 // Output: RGB white where caller wants edits, RGB black where caller wants preserved; alpha=255 everywhere.
 // Returns a NEW Uint8Array — input untouched (immutability).

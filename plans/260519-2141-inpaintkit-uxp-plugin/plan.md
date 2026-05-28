@@ -26,7 +26,7 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |--------|------|----------|------|--------|
 | 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | complete |
 | 2 | More models + UX polish | 1 week | 12h | complete |
-| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | in-progress |
+| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | complete |
 | 4 | Distribution + final polish | 0.5 week | 3h | pending |
 
 **Total estimated effort:** 56h (critical path ~36h with parallel execution)
@@ -55,7 +55,7 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |---|-------|------|--------|------|
 | 7 | Backend MVP (Fork chatgpt2api) | 5h | complete | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
 | 8 | Backend ChatGPT Provider (Adapt) | 4h | complete | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
-| 9 | Plugin ChatGPT Integration | 7h | in-progress | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
+| 9 | Plugin ChatGPT Integration | 7h | complete | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
 
 ### Sprint 4: Distribution
 

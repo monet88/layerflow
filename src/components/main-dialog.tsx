@@ -6,6 +6,7 @@ import '@spectrum-web-components/divider/sp-divider.js';
 import { ModelSelector, type ModelValue } from './model-selector';
 import { PromptInput } from './prompt-input';
 import { ReferenceImages } from './reference-images';
+import { getModelDefinition } from '../providers/model-registry';
 import type { MainDialogState, ReferenceImage } from '../types/ui-state';
 import { getRecentPrompts, type RecentPrompt } from '../storage/settings-storage';
 
@@ -32,6 +33,12 @@ export function MainDialog({
   const [prompt, setPrompt] = useState('');
   const [recentPrompts, setRecentPrompts] = useState<RecentPrompt[]>([]);
   const [refImages, setRefImages] = useState<ReferenceImage[]>([]);
+
+  const effectiveMode =
+    mode === 'inpaint' || !getModelDefinition(model).capabilities.includes('generate')
+      ? 'inpaint'
+      : 'generate';
+  const actionLabel = effectiveMode === 'generate' ? 'Generate' : 'Inpaint Selection';
 
   useEffect(() => {
     setRecentPrompts(getRecentPrompts());
@@ -70,7 +77,7 @@ export function MainDialog({
         }}
       >
         <h3 style={{ margin: 0, color: '#fff', fontSize: 14 }}>
-          {mode === 'generate' ? 'Generate Image' : 'Inpaint Selection'}
+          {effectiveMode === 'generate' ? 'Generate Image' : 'Inpaint Selection'}
         </h3>
         <sp-action-button size="s" onClick={onSettings} title="Settings">
           ⚙
@@ -101,6 +108,11 @@ export function MainDialog({
       )}
 
       <ModelSelector value={model} onChange={setModel} />
+      {effectiveMode === 'inpaint' && (
+        <div style={{ fontSize: 11, color: '#9e9e9e' }}>
+          This model edits the current Photoshop selection and does not support text-only generate.
+        </div>
+      )}
       <sp-divider size="s"></sp-divider>
       <PromptInput value={prompt} onChange={setPrompt} recentPrompts={recentPrompts} />
       <ReferenceImages
@@ -114,7 +126,7 @@ export function MainDialog({
           Cancel
         </sp-button>
         <sp-button variant="cta" onClick={handleGenerate} disabled={!prompt.trim()}>
-          Generate
+          {actionLabel}
         </sp-button>
       </div>
     </div>

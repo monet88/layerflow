@@ -4,7 +4,7 @@ import '@spectrum-web-components/theme/src/themes.js';
 import { MainDialog } from './components/main-dialog';
 import { SettingsDialog } from './components/settings-dialog';
 import { ProgressDialog } from './components/progress-dialog';
-import type { ActiveDialog, MainDialogState, ProviderId } from './types/ui-state';
+import type { ActiveDialog, MainDialogState } from './types/ui-state';
 import {
   isGenerationInFlight,
   PlacementError,
@@ -84,11 +84,6 @@ export function App() {
     setActiveDialog('main');
   };
 
-  const handleSaveSettings = (provider: ProviderId, key: string): void => {
-    console.log('Save settings:', provider, key ? '[key present]' : '[no key]');
-    setActiveDialog('main');
-  };
-
   return (
     <sp-theme scale="medium" color="dark">
       {activeDialog === 'main' && (
@@ -101,9 +96,7 @@ export function App() {
           onCancel={() => setActiveDialog(null)}
         />
       )}
-      {activeDialog === 'settings' && (
-        <SettingsDialog onClose={() => setActiveDialog('main')} onSave={handleSaveSettings} />
-      )}
+      {activeDialog === 'settings' && <SettingsDialog onClose={() => setActiveDialog('main')} />}
       {activeDialog === 'progress' && (
         <ProgressDialog message={progressMessage} onCancel={handleCancelProgress} />
       )}
