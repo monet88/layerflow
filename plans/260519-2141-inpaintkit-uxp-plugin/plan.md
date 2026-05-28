@@ -26,7 +26,7 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |--------|------|----------|------|--------|
 | 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | complete |
 | 2 | More models + UX polish | 1 week | 12h | complete |
-| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | pending |
+| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | in-progress |
 | 4 | Distribution + final polish | 0.5 week | 3h | pending |
 
 **Total estimated effort:** 56h (critical path ~36h with parallel execution)
