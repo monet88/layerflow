@@ -22,6 +22,7 @@ export interface RequestOptions {
   body?: string | Uint8Array;
   signal?: AbortSignal;
   timeoutMs?: number;
+  retryOnFetchFailure?: boolean;
 }
 
 export interface NetworkResponse {
@@ -38,6 +39,20 @@ function bodySize(body: string | Uint8Array | undefined): number {
   if (!body) return 0;
   if (typeof body === 'string') return body.length;
   return body.byteLength;
+}
+
+class RequestTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RequestTimeoutError';
+  }
+}
+
+function decodeXhrText(xhr: XMLHttpRequest): string {
+  if (typeof xhr.response === 'string') return xhr.response;
+  if (xhr.response instanceof ArrayBuffer) return new TextDecoder().decode(xhr.response);
+  if (xhr.response == null) return '';
+  return String(xhr.response);
 }
 
 function buildResponseFromXhr(xhr: XMLHttpRequest): NetworkResponse {
@@ -58,16 +73,14 @@ function buildResponseFromXhr(xhr: XMLHttpRequest): NetworkResponse {
     statusText: xhr.statusText,
     headers,
     async text() {
-      return typeof xhr.response === 'string' ? xhr.response : xhr.responseText;
+      return decodeXhrText(xhr);
     },
     async json<T = unknown>() {
-      const raw = typeof xhr.response === 'string' ? xhr.response : xhr.responseText;
-      return JSON.parse(raw) as T;
+      return JSON.parse(decodeXhrText(xhr)) as T;
     },
     async bytes() {
       if (xhr.response instanceof ArrayBuffer) return new Uint8Array(xhr.response);
-      // Fallback: re-encode text as UTF-8.
-      return new TextEncoder().encode(xhr.responseText);
+      return new TextEncoder().encode(decodeXhrText(xhr));
     },
   };
 }
@@ -117,7 +130,11 @@ function xhrRequest(url: string, options: RequestOptions): Promise<NetworkRespon
 
 async function fetchRequest(url: string, options: RequestOptions): Promise<NetworkResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? FETCH_TIMEOUT_MS);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, options.timeoutMs ?? FETCH_TIMEOUT_MS);
 
   // Forward external abort signal into the internal controller.
   const externalSignal = options.signal;
@@ -153,12 +170,23 @@ async function fetchRequest(url: string, options: RequestOptions): Promise<Netwo
       json: <T = unknown>() => res.json() as Promise<T>,
       bytes: async () => new Uint8Array(await res.arrayBuffer()),
     };
+  } catch (error) {
+    if (timedOut) {
+      throw new RequestTimeoutError(`Fetch timeout after ${options.timeoutMs ?? FETCH_TIMEOUT_MS}ms: ${url}`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
     if (externalSignal) {
       externalSignal.removeEventListener('abort', onExternalAbort);
     }
   }
+}
+
+function shouldFallbackToXhr(options: RequestOptions, err: unknown): boolean {
+  if (err instanceof RequestTimeoutError) return false;
+  if ((options.method ?? 'GET') === 'POST') return options.retryOnFetchFailure === true;
+  return true;
 }
 
 // Low-level request: routes large bodies straight to XHR; otherwise fetch with XHR fallback.
@@ -175,6 +203,7 @@ export async function request(url: string, options: RequestOptions = {}): Promis
   } catch (err) {
     if (err instanceof CancelledError) throw err;
     if (options.signal?.aborted) throw new CancelledError();
+    if (!shouldFallbackToXhr(options, err)) throw err;
     return await xhrRequest(url, options);
   }
 }

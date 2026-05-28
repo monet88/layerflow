@@ -120,7 +120,7 @@ The plugin handles login (simple REST to auth.openai.com). The backend handles t
   - Token NOT sent per-request — backend retrieves stored token from session_repository by user_id
   - Handle 180s timeout (XHR, not fetch)
   - Progress: "Uploading..." → "Generating (this may take 2+ minutes)..."
-  - Backend URL validation: reject non-HTTPS URLs (except localhost) at settings save time
+  - Backend URL validation: allow only manifest-approved loopback origins (`http://localhost:8000`, `http://127.0.0.1:8000`, `http://[::1]:8000`) at settings save time
   - Map backend error `code` to user-facing messages (see Backend API Contract above)
   - On `provider_auth_failed` or `missing_session`: auto-clear local token → show re-login prompt
   - On `provider_reconnect_required`: show specific "Re-authorize in ChatGPT settings" message
@@ -392,12 +392,14 @@ Request body for start:
     "https://v3.fal.media",
     "https://api.replicate.com",
     "https://replicate.delivery",
-    "http://localhost:8000"
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://[::1]:8000"
   ]
 }
 ```
 
-Note: This is the FULL domains list at Phase 9. Equals Phase 1 manifest domains + `http://localhost:8000` for backend dev. Backend is developer-managed (not user-facing); localhost:8000 for dev, VPS URL updated at build time for production. Plugin does NOT call chatgpt.com directly — backend handles that.
+Note: This is the FULL domains list at Phase 9. Equals Phase 1 manifest domains + the manifest-approved loopback backend origins for dev. Backend is developer-managed (not user-facing); localhost:8000 for dev, VPS URL updated at build time for production. Plugin does NOT call chatgpt.com directly — backend handles that.
 
 ## Success Criteria
 
@@ -407,7 +409,7 @@ Note: This is the FULL domains list at Phase 9. Equals Phase 1 manifest domains 
 - [ ] Connected status shows in Settings with expiry
 - [ ] Disconnect clears tokens and shows disconnected
 - [ ] Token auto-refreshes when near expiry
-- [ ] `validateBackendUrl()` rejects `http://` for non-loopback hosts and accepts `http://localhost:8000`
+- [ ] `validateBackendUrl()` rejects non-loopback hosts and accepts the manifest-approved loopback origins
 - [ ] Settings dialog displays the validation error inline and refuses to persist a bad URL
 - [ ] `assertImageEditsResponse()` throws `ProviderResponseError` on malformed payloads (missing data array, missing b64_json AND url, non-object)
 - [ ] Backend provider sends request and receives b64_json

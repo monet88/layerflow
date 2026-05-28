@@ -334,7 +334,7 @@ Sprint 3 backend (7-8) can start parallel with Sprint 2, but Phase 9 requires Ph
 - YAML frontmatter: all 10 phases now have consistent YAML frontmatter with sprint, effort, depends_on
 - depends_on: Phase 2,3 → [phase-01]; Phase 5 → [phase-02, phase-03, phase-04]
 - Storage modules: Phase 4 now creates `secure-storage.ts` and `settings-storage.ts`
-- Domains: P1 = 8 domains (no chatgpt.com); P9 = P1 + localhost:8000
+- Domains: P1 = 8 domains (no chatgpt.com); P9 = P1 + loopback backend origins (`http://localhost:8000`, `http://127.0.0.1:8000`, `http://[::1]:8000`)
 
 #### Impact on Phases
 <!-- Updated: Validation Session 3 - YAML frontmatter + dependency graph -->

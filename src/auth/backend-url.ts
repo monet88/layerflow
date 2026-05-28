@@ -1,4 +1,10 @@
-const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+export const SUPPORTED_BACKEND_ORIGINS = [
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+  'http://[::1]:8000',
+] as const;
+
+const SUPPORTED_BACKEND_ORIGIN_SET = new Set<string>(SUPPORTED_BACKEND_ORIGINS);
 
 export class InvalidBackendUrlError extends Error {
   constructor(message: string) {
@@ -26,15 +32,12 @@ export function validateBackendUrl(raw: string): URL {
   if (parsed.hash) {
     throw new InvalidBackendUrlError('Backend URL must not contain a fragment.');
   }
-  if (parsed.protocol === 'https:') {
-    return parsed;
-  }
-  if (parsed.protocol === 'http:' && LOOPBACK_HOSTS.has(parsed.hostname)) {
+  if (SUPPORTED_BACKEND_ORIGIN_SET.has(parsed.origin)) {
     return parsed;
   }
 
   throw new InvalidBackendUrlError(
-    `Backend URL must use https:// (got ${parsed.protocol}//${parsed.hostname}). http:// is only allowed for localhost / 127.0.0.1 / ::1.`,
+    `Backend URL must use one of the UXP manifest allowlisted origins: ${SUPPORTED_BACKEND_ORIGINS.join(', ')}.`,
   );
 }
 

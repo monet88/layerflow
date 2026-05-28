@@ -5,7 +5,7 @@ import '@spectrum-web-components/menu/sp-menu-item.js';
 import '@spectrum-web-components/textfield/sp-textfield.js';
 import '@spectrum-web-components/button/sp-button.js';
 import type { StoredChatGptTokens } from '../auth/oauth-types';
-import { normalizeBackendUrl } from '../auth/backend-url';
+import { normalizeBackendUrl, SUPPORTED_BACKEND_ORIGINS } from '../auth/backend-url';
 import { disconnectChatGpt, getChatGptConnectionStatus } from '../auth/token-manager';
 import { useSpEvent } from '../hooks/use-sp-event';
 import { ChatGptLoginModal } from './chatgpt-login-modal';
@@ -235,8 +235,8 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             ></sp-textfield>
           </div>
           <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>
-            ChatGPT images are sent to your backend as uploaded files. This flow does not use
-            image URLs or data URIs.
+            ChatGPT images are sent to your backend as uploaded files. Allowed origins:{' '}
+            {SUPPORTED_BACKEND_ORIGINS.join(', ')}.
           </p>
           <ConnectionStatus
             status={chatGptStatus}

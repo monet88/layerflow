@@ -185,7 +185,7 @@ From InpaintKit's public roadmap + own ideas:
 
 ### Key Technical Decisions
 
-1. fetch + XHR fallback for all network calls (UXP fetch unreliable on large uploads)
+1. XHR-first network client for long POST/uploads; fetch stays for simple requests, and XHR now parses arraybuffer/text/json responses reliably in UXP
 2. doc.saveAs.png() on temp duplicate for image export (handles ICC, compositing)
 3. imaging.getSelection() for mask extraction (feathered/lasso support)
 4. Smart Object via placeEvent batchPlay (non-destructive, editable)

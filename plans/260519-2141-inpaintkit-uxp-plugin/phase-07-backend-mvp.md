@@ -186,7 +186,7 @@ MAX_UPLOAD_MB=20
 ENCRYPTION_KEY=                            # REQUIRED — Fernet key (urlsafe base64, 44 chars). Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 LOG_LEVEL=warning
 CHATGPT_BASE_URL=https://chatgpt.com
-ALLOWED_ORIGINS=app://uxp-internal,http://localhost:8000  # comma-separated; UXP panel uses an opaque app:// origin in newer UXP versions
+ALLOWED_ORIGINS=app://uxp-internal,http://localhost:8000,http://127.0.0.1:8000,http://[::1]:8000  # comma-separated; UXP panel uses an opaque app:// origin in newer UXP versions
 ```
 
 **Startup assertions (`app/core/config.py`):**
@@ -198,7 +198,7 @@ from cryptography.fernet import Fernet, InvalidToken
 class Settings(BaseSettings):
     APP_API_KEY: str
     ENCRYPTION_KEY: str
-    ALLOWED_ORIGINS: str = "app://uxp-internal,http://localhost:8000"
+    ALLOWED_ORIGINS: str = "app://uxp-internal,http://localhost:8000,http://127.0.0.1:8000,http://[::1]:8000"
     # ... other fields ...
 
     @field_validator("ENCRYPTION_KEY")

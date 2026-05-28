@@ -1,4 +1,5 @@
 import { refreshAccessToken } from './codex-device-code';
+import { CancelledError } from '../providers/provider-interface';
 import type { OAuthTokenResponse, StoredChatGptTokens } from './oauth-types';
 import {
   clearChatGPTTokens,
@@ -114,7 +115,8 @@ export async function getStoredChatGptTokens(): Promise<StoredChatGptTokens | un
   return await getChatGPTTokens();
 }
 
-export async function getValidToken(): Promise<StoredChatGptTokens> {
+export async function getValidToken(signal?: AbortSignal): Promise<StoredChatGptTokens> {
+  if (signal?.aborted) throw new CancelledError();
   const stored = await getChatGPTTokens();
   if (!stored) {
     throw new TokenExpiredError('ChatGPT is not connected. Open Settings and sign in.');
@@ -124,9 +126,11 @@ export async function getValidToken(): Promise<StoredChatGptTokens> {
   }
 
   try {
-    const refreshed = await refreshAccessToken(stored.refreshToken);
+    const refreshed = await refreshAccessToken(stored.refreshToken, signal);
+    if (signal?.aborted) throw new CancelledError();
     return await storeChatGptTokens(refreshed, stored);
-  } catch {
+  } catch (error) {
+    if (error instanceof CancelledError) throw error;
     await clearChatGPTTokens();
     throw new TokenExpiredError('ChatGPT session expired. Open Settings and sign in again.');
   }

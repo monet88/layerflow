@@ -144,8 +144,8 @@ export class ChatGPTBackendProvider implements Provider {
     this.apiKey = apiKey;
   }
 
-  async registerSession(tokens?: StoredChatGptTokens): Promise<void> {
-    const activeTokens = tokens ?? (await getValidToken());
+  async registerSession(tokens?: StoredChatGptTokens, signal?: AbortSignal): Promise<void> {
+    const activeTokens = tokens ?? (await getValidToken(signal));
     const res = await request(`${this.baseUrl}/auth/chatgpt/session`, {
       method: 'POST',
       headers: {
@@ -154,7 +154,9 @@ export class ChatGPTBackendProvider implements Provider {
         'X-User-Id': activeTokens.userId,
       },
       body: JSON.stringify({ access_token: activeTokens.accessToken }),
+      signal,
       timeoutMs: REQUEST_TIMEOUT_MS,
+      retryOnFetchFailure: true,
     });
     if (!res.ok) {
       throw await this.toProviderError(await readBackendError(res), false);
@@ -170,12 +172,12 @@ export class ChatGPTBackendProvider implements Provider {
 
   async inpaint(options: InpaintOptions): Promise<ResultItem[]> {
     try {
-      const tokens = await getValidToken();
+      const tokens = await getValidToken(options.signal);
       try {
         return await this.sendEditRequest(options, tokens.userId);
       } catch (error) {
         if (error instanceof BackendRequestError && shouldRepairSession(error)) {
-          await this.registerSession(tokens);
+          await this.registerSession(tokens, options.signal);
           return await this.sendEditRequest(options, tokens.userId);
         }
         throw error;
