@@ -76,7 +76,7 @@ const REGISTRY: Record<string, ModelDefinition> = {
       generate: 'gpt-image-2',
       inpaint: 'gpt-image-2',
     },
-    resolutions: [1024, 1536, 2048],
+    resolutions: [1024],
     defaultResolution: 1024,
     costHint: 'ChatGPT sub',
     supportsReferenceImages: false,

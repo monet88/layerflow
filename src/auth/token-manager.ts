@@ -1,4 +1,4 @@
-import { refreshAccessToken } from './codex-device-code';
+import { DeviceAuthError, refreshAccessToken } from './codex-device-code';
 import { CancelledError } from '../providers/provider-interface';
 import type { OAuthTokenResponse, StoredChatGptTokens } from './oauth-types';
 import {
@@ -131,8 +131,11 @@ export async function getValidToken(signal?: AbortSignal): Promise<StoredChatGpt
     return await storeChatGptTokens(refreshed, stored);
   } catch (error) {
     if (error instanceof CancelledError) throw error;
-    await clearChatGPTTokens();
-    throw new TokenExpiredError('ChatGPT session expired. Open Settings and sign in again.');
+    if (error instanceof DeviceAuthError && error.isSessionInvalid) {
+      await clearChatGPTTokens();
+      throw new TokenExpiredError('ChatGPT session expired. Open Settings and sign in again.');
+    }
+    throw new TokenExpiredError('Could not refresh ChatGPT session. Check your connection and try again.');
   }
 }
 

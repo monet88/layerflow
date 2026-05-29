@@ -3,7 +3,8 @@
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
-    "backend/venv"
+    "backend/venv",
+    "backend/tests"
   ],
   "venvPath": "backend",
   "venv": "venv",

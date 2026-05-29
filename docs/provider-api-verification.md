@@ -382,7 +382,7 @@ Step 7: Download Image
 
 ### Device Code OAuth (Plugin Side)
 
-Plugin-side implementation now uses the auth endpoints above directly, stores `accessToken` / `refreshToken` in plugin secure storage, and registers the active ChatGPT session with the backend separately. Per-image edit requests use the backend API key plus `X-User-Id`; the OAuth access token is not sent on every image edit request.
+Plugin-side implementation now uses the auth endpoints above directly and stores `accessToken` / `refreshToken` in plugin secure storage. Backend session endpoints are legacy no-ops; per-image generate/edit requests use the backend API key plus `X-User-Id` and send the current OAuth token in `X-ChatGPT-Access-Token` without persisting it server-side.
 
 From cc-switch source (`src/lib/api/auth.ts`):
 

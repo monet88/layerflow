@@ -66,9 +66,11 @@ class ChatGPTWebProvider(BaseImageProvider):
         n: int = 1,
         size: str = "1024x1024",
     ) -> Dict[str, Any]:
-        _ = (user_id, size)
+        _ = user_id
         if not prompt or not prompt.strip():
             raise ValueError("prompt is required")
+        if size != "1024x1024":
+            raise ValueError("ChatGPT Web provider only supports size=1024x1024")
         if n > 1:
             raise ValueError(
                 "ChatGPT Web provider does not support n > 1"
@@ -94,9 +96,11 @@ class ChatGPTWebProvider(BaseImageProvider):
         n: int = 1,
         size: str = "1024x1024",
     ) -> Dict[str, Any]:
-        _ = (user_id, size)
+        _ = user_id
         if not prompt or not prompt.strip():
             raise ValueError("prompt is required")
+        if size != "1024x1024":
+            raise ValueError("ChatGPT Web provider only supports size=1024x1024")
         if not image_bytes:
             raise ValueError("image bytes are required")
         if n > 1:

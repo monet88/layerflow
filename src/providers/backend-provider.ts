@@ -4,6 +4,7 @@ import {
   Provider,
   ProviderError,
   ProviderId,
+  CancelledError,
   ResultItem,
 } from './provider-interface';
 import {
@@ -144,34 +145,19 @@ export class ChatGPTBackendProvider implements Provider {
     this.apiKey = apiKey;
   }
 
-  async registerSession(tokens?: StoredChatGptTokens, signal?: AbortSignal): Promise<void> {
-    const activeTokens = tokens ?? (await getValidToken(signal));
-    const res = await request(`${this.baseUrl}/auth/chatgpt/session`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-        'X-User-Id': activeTokens.userId,
-      },
-      body: JSON.stringify({ access_token: activeTokens.accessToken }),
-      signal,
-      timeoutMs: REQUEST_TIMEOUT_MS,
-      retryOnFetchFailure: true,
-    });
-    if (!res.ok) {
-      throw await this.toProviderError(await readBackendError(res), false);
-    }
+  async registerSession(_tokens?: StoredChatGptTokens, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw new CancelledError();
   }
 
   async generate(options: GenerateOptions): Promise<ResultItem[]> {
     try {
       const tokens = await getValidToken(options.signal);
       try {
-        return await this.sendGenerateRequest(options, tokens.userId);
+        return await this.sendGenerateRequest(options, tokens);
       } catch (error) {
         if (error instanceof BackendRequestError && shouldRepairSession(error)) {
           await this.registerSession(tokens, options.signal);
-          return await this.sendGenerateRequest(options, tokens.userId);
+          return await this.sendGenerateRequest(options, tokens);
         }
         throw error;
       }
@@ -190,11 +176,11 @@ export class ChatGPTBackendProvider implements Provider {
     try {
       const tokens = await getValidToken(options.signal);
       try {
-        return await this.sendEditRequest(options, tokens.userId);
+        return await this.sendEditRequest(options, tokens);
       } catch (error) {
         if (error instanceof BackendRequestError && shouldRepairSession(error)) {
           await this.registerSession(tokens, options.signal);
-          return await this.sendEditRequest(options, tokens.userId);
+          return await this.sendEditRequest(options, tokens);
         }
         throw error;
       }
@@ -209,13 +195,14 @@ export class ChatGPTBackendProvider implements Provider {
     }
   }
 
-  private async sendGenerateRequest(options: GenerateOptions, userId: string): Promise<ResultItem[]> {
+  private async sendGenerateRequest(options: GenerateOptions, tokens: StoredChatGptTokens): Promise<ResultItem[]> {
     const res = await request(`${this.baseUrl}/v1/images/generations`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
-        'X-User-Id': userId,
+        'X-User-Id': tokens.userId,
+        'X-ChatGPT-Access-Token': tokens.accessToken,
       },
       body: JSON.stringify({
         prompt: options.prompt,
@@ -225,7 +212,6 @@ export class ChatGPTBackendProvider implements Provider {
       }),
       signal: options.signal,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      retryOnFetchFailure: true,
     });
     if (!res.ok) {
       throw await readBackendError(res);
@@ -240,7 +226,7 @@ export class ChatGPTBackendProvider implements Provider {
     }));
   }
 
-  private async sendEditRequest(options: InpaintOptions, userId: string): Promise<ResultItem[]> {
+  private async sendEditRequest(options: InpaintOptions, tokens: StoredChatGptTokens): Promise<ResultItem[]> {
     if (!options.maskWidth || !options.maskHeight) {
       throw new ProviderError(
         'ChatGPT backend requires mask dimensions for upload.',
@@ -256,7 +242,8 @@ export class ChatGPTBackendProvider implements Provider {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'X-User-Id': userId,
+        'X-User-Id': tokens.userId,
+        'X-ChatGPT-Access-Token': tokens.accessToken,
       },
       body,
       signal: options.signal,

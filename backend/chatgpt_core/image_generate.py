@@ -84,7 +84,7 @@ def _start_image_generation(self, prompt: str, requirements: ChatRequirements, c
                             references: Optional[list[Dict[str, Any]]] = None) -> requests.Response:
     """Start an image generation or edit SSE request and return the streaming response."""
     references = references or []
-    parts = [{
+    parts: list[dict[str, Any] | str] = [{
         "content_type": "image_asset_pointer",
         "asset_pointer": f"file-service://{item['file_id']}",
         "width": item["width"],

@@ -20,7 +20,10 @@ import {
 } from './oauth-types';
 
 export class DeviceAuthError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly isSessionInvalid = false,
+  ) {
     super(message);
     this.name = 'DeviceAuthError';
   }
@@ -163,7 +166,8 @@ async function exchangeForm(
   });
   const raw = (await parseJson(res)) as OAuthTokenResponse | undefined;
   if (!res.ok || !raw?.access_token) {
-    throw new DeviceAuthError(getMessage(raw, 'ChatGPT token exchange failed.'));
+    const isSessionInvalid = res.status === 400 || res.status === 401 || res.status === 403;
+    throw new DeviceAuthError(getMessage(raw, 'ChatGPT token exchange failed.'), isSessionInvalid);
   }
   return raw;
 }

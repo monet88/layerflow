@@ -1,12 +1,12 @@
 # InpaintKit Backend MVP
 
-This is the backend service for the InpaintKit Photoshop Plugin. It provides an OpenAI-compatible interface for image edits, manages encrypted user access tokens in SQLite, and proxies requests to ChatGPT Web endpoints securely.
+This is the backend service for the InpaintKit Photoshop Plugin. It provides an OpenAI-compatible interface for image generations and edits, validates the plugin API key, and proxies requests to ChatGPT Web endpoints securely. ChatGPT OAuth tokens stay in plugin storage and are forwarded per image request.
 
 ---
 
 ## Technical Stack
 - **Framework**: FastAPI (Python 3.11-slim)
-- **Database**: SQLite with Fernet Symmetric Encryption
+- **Database**: SQLite legacy session schema
 - **HTTP Client**: `curl-cffi==0.7.4` (for TLS fingerprint bypass/impersonation)
 - **Containerization**: Docker & Docker Compose
 
@@ -58,7 +58,7 @@ The database file will be persisted on the host machine at `./data/app.sqlite` v
 
 ## API Endpoints & `curl` Examples
 
-All authenticated requests require the header `Authorization: Bearer <APP_API_KEY>` and `X-User-Id: <user_id>`.
+All authenticated requests require `Authorization: Bearer <APP_API_KEY>`. Image requests also include `X-User-Id: <user_id>`; when `IMAGE_PROVIDER=chatgpt_web`, they must send the current ChatGPT OAuth token in `X-ChatGPT-Access-Token`.
 
 ### 1. Health Check
 Unauthenticated check to confirm the backend is up.
@@ -66,30 +66,19 @@ Unauthenticated check to confirm the backend is up.
 curl -i http://127.0.0.1:8000/health
 ```
 
-### 2. Connect ChatGPT Session
-Store the user's ChatGPT access token (stored encrypted with AES-CBC-HMAC via Fernet).
+### 2. Legacy ChatGPT Session Compatibility
+These endpoints remain for older clients and return success/status without storing ChatGPT tokens. The plugin now sends the current OAuth token on each image request.
 ```bash
 curl -i -X POST http://127.0.0.1:8000/auth/chatgpt/session \
   -H "Authorization: Bearer dev-app-key" \
-  -H "X-User-Id: user-123" \
   -H "Content-Type: application/json" \
   -d '{"access_token": "eyJhbGciOiJSUzI1NiIs..."}'
-```
 
-### 3. Check Session Status
-Determine if the user is connected.
-```bash
 curl -i http://127.0.0.1:8000/auth/chatgpt/session/status \
-  -H "Authorization: Bearer dev-app-key" \
-  -H "X-User-Id: user-123"
-```
+  -H "Authorization: Bearer dev-app-key"
 
-### 4. Disconnect Session
-Clear the user's stored token.
-```bash
 curl -i -X DELETE http://127.0.0.1:8000/auth/chatgpt/session \
-  -H "Authorization: Bearer dev-app-key" \
-  -H "X-User-Id: user-123"
+  -H "Authorization: Bearer dev-app-key"
 ```
 
 ### 5. List Models
@@ -100,11 +89,12 @@ curl -i http://127.0.0.1:8000/v1/models \
 ```
 
 ### 6. Image Edits (Inpainting / Mock)
-Submit an image, optional mask, and prompt. If `IMAGE_PROVIDER=mock`, the API will echo back the input image.
+Submit an image, optional mask, and prompt. If `IMAGE_PROVIDER=mock`, the API echoes the input image; if `IMAGE_PROVIDER=chatgpt_web`, include the current ChatGPT OAuth access token.
 ```bash
 curl -i -X POST http://127.0.0.1:8000/v1/images/edits \
   -H "Authorization: Bearer dev-app-key" \
   -H "X-User-Id: user-123" \
+  -H "X-ChatGPT-Access-Token: eyJhbGciOiJSUzI1NiIs..." \
   -F "image=@/absolute/path/to/image.png" \
   -F "prompt=draw a red hat" \
   -F "model=gpt-image-2"
@@ -127,7 +117,7 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-- `tests/test_backend.py` — health, models, session CRUD, mock provider, upload size cap.
+- `tests/test_backend.py` — health, models, legacy session compatibility, mock provider, upload size cap.
 - `tests/test_image_upload_security.py` — `_decode_image_base64` rejects path-traversal input.
 - `tests/test_chatgpt_web_provider.py` — upstream 401/403/429/500 + poll timeout map to typed errors.
 - `tests/test_provider_concurrency.py` — two concurrent edits run in parallel via `asyncio.to_thread`.
@@ -138,8 +128,7 @@ pytest -q
 2. Start the server: `uvicorn main:app --port 8000`.
 3. Capture an access token from `https://chatgpt.com/api/auth/session`
    (browser DevTools → Network → `session` response → `accessToken`).
-4. Store the token via `POST /auth/chatgpt/session` (curl example above).
-5. Submit an edit with a `mask` field and expect 120-150s wall time. Response shape:
+4. Submit an edit with `X-ChatGPT-Access-Token` and a `mask` field; expect 120-150s wall time. Response shape:
    ```json
    {"created": 1700000000, "data": [{"b64_json": "iVBORw0…"}]}
    ```
@@ -162,9 +151,8 @@ Failure cases to verify:
   proxy's IP.
 - `CHATGPT_POLL_TIMEOUT` (default 150s) controls how long the backend waits
   for ChatGPT image generation before returning a timeout error.
-- SQLite runs in WAL mode with a 5s `busy_timeout` so the FastAPI
-  threadpool can write tokens without lock conflicts. The data directory
-  must be writable by the container user.
+- SQLite runs in WAL mode with a 5s `busy_timeout` for legacy metadata writes.
+  The data directory must be writable by the container user.
 - `requirements-dev.txt` is dev-only (pytest + pytest-asyncio); the
   Docker image only installs `requirements.txt`.
 - Logs are JSON via `app/core/logging.py`; the redaction filter masks

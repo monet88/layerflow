@@ -159,7 +159,7 @@ export function MainDialog({
       )}
       {selectedModel.providerId === 'chatgpt-backend' && (
         <div style={{ fontSize: 11, color: '#9e9e9e' }}>
-          ChatGPT {mode} may take 2+ minutes and requires the backend session to be connected.
+          ChatGPT {mode} may take 2+ minutes and requires ChatGPT sign-in in Settings.
         </div>
       )}
       <sp-divider size="s"></sp-divider>

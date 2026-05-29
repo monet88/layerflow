@@ -2,7 +2,7 @@ from typing import Literal, Optional
 import logging
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, HTTPException, status
 from pydantic import BaseModel, Field
-from app.api.deps import verify_app_api_key, get_user_id
+from app.api.deps import verify_app_api_key, get_user_id, get_chatgpt_access_token
 from app.core.config import settings
 from app.core.errors import AppError, raise_http_from_app_error
 from app.core.rate_limit import limiter
@@ -18,7 +18,7 @@ class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=4000)
     model: Literal["gpt-image-2"] = "gpt-image-2"
     n: int = Field(1, ge=1, le=1)
-    size: Literal["1024x1024", "1536x1536", "2048x2048"] = "1024x1024"
+    size: Literal["1024x1024"] = "1024x1024"
 
 
 async def _read_upload_with_budget(upload: UploadFile, max_bytes: int) -> bytes:
@@ -49,6 +49,7 @@ async def generate_image_endpoint(
     request: Request,
     payload: ImageGenerationRequest,
     user_id: str = Depends(get_user_id),
+    chatgpt_access_token: Optional[str] = Depends(get_chatgpt_access_token),
 ):
     _ = request
     try:
@@ -58,6 +59,7 @@ async def generate_image_endpoint(
             model=payload.model,
             n=payload.n,
             size=payload.size,
+            access_token=chatgpt_access_token,
         )
     except AppError as exc:
         raise_http_from_app_error(exc)
@@ -85,11 +87,12 @@ async def edit_image_endpoint(
     request: Request,
     image: UploadFile = File(...),
     mask: Optional[UploadFile] = File(None),
-    prompt: str = Form(...),
-    model: str = Form("gpt-image-2"),
-    n: int = Form(1),
-    size: str = Form("1024x1024"),
+    prompt: str = Form(..., min_length=1, max_length=4000),
+    model: Literal["gpt-image-2"] = Form("gpt-image-2"),
+    n: int = Form(1, ge=1, le=1),
+    size: Literal["1024x1024"] = Form("1024x1024"),
     user_id: str = Depends(get_user_id),
+    chatgpt_access_token: Optional[str] = Depends(get_chatgpt_access_token),
 ):
     """OpenAI-compatible image edits endpoint.
 
@@ -131,6 +134,7 @@ async def edit_image_endpoint(
                 model=model,
                 n=n,
                 size=size,
+                access_token=chatgpt_access_token,
             )
             return result
         except AppError as exc:

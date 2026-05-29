@@ -22,7 +22,6 @@ export interface RequestOptions {
   body?: string | Uint8Array;
   signal?: AbortSignal;
   timeoutMs?: number;
-  retryOnFetchFailure?: boolean;
 }
 
 export interface NetworkResponse {
@@ -121,9 +120,11 @@ function xhrRequest(url: string, options: RequestOptions): Promise<NetworkRespon
     } else if (typeof body === 'string') {
       xhr.send(body);
     } else {
-      // Cast: lib.dom XHR send() typings reject Uint8Array<ArrayBufferLike>, but UXP's XHR
-      // accepts typed arrays at runtime. Send the underlying buffer as ArrayBuffer.
-      xhr.send(body.buffer as ArrayBuffer);
+      const buffer =
+        body.byteOffset === 0 && body.byteLength === body.buffer.byteLength
+          ? body.buffer
+          : body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+      xhr.send(buffer as ArrayBuffer);
     }
   });
 }
@@ -183,10 +184,8 @@ async function fetchRequest(url: string, options: RequestOptions): Promise<Netwo
   }
 }
 
-function shouldFallbackToXhr(options: RequestOptions, err: unknown): boolean {
-  if (err instanceof RequestTimeoutError) return false;
-  if ((options.method ?? 'GET') === 'POST') return options.retryOnFetchFailure === true;
-  return true;
+function shouldFallbackToXhr(_options: RequestOptions, err: unknown): boolean {
+  return !(err instanceof RequestTimeoutError);
 }
 
 // Low-level request: routes large bodies straight to XHR; otherwise fetch with XHR fallback.

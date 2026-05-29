@@ -1,5 +1,6 @@
 import base64
 from io import BytesIO
+from typing import Any, cast
 from PIL import Image
 
 from app.providers.mock_provider import get_fallback_png
@@ -23,6 +24,20 @@ def test_models_auth(client):
     assert "data" in data
     assert any(m["id"] == "gpt-image-2" for m in data["data"])
 
+
+def test_cors_allows_chatgpt_access_token_header(client):
+    response = client.options(
+        "/v1/images/generations",
+        headers={
+            "Origin": "http://localhost:8000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type, X-User-Id, X-ChatGPT-Access-Token",
+        },
+    )
+    assert response.status_code == 200
+    allow_headers = response.headers["access-control-allow-headers"].lower()
+    assert "x-chatgpt-access-token" in allow_headers
+
 def test_session_status_unconnected(client):
     response = client.get(
         "/auth/chatgpt/session/status",
@@ -42,13 +57,13 @@ def test_connect_session(client):
     assert response.status_code == 200
     assert response.json()["status"] == "success"
 
-    # Status check
+    # Backend image routes receive the current access token per request.
     response = client.get(
         "/auth/chatgpt/session/status",
         headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"}
     )
     assert response.status_code == 200
-    assert response.json() == {"connected": True}
+    assert response.json() == {"connected": False}
 
 def test_disconnect_session(client):
     # Connect first
@@ -114,6 +129,7 @@ def test_generate_image_rejects_invalid_payload(client):
         {"prompt": "draw a cat", "model": "unsupported"},
         {"prompt": "draw a cat", "model": "gpt-image-2", "n": 2},
         {"prompt": "draw a cat", "model": "gpt-image-2", "size": "4096x4096"},
+        {"prompt": "draw a cat", "model": "gpt-image-2", "size": "1536x1536"},
     ]
 
     for payload in invalid_payloads:
@@ -123,6 +139,46 @@ def test_generate_image_rejects_invalid_payload(client):
             json=payload,
         )
         assert response.status_code == 422
+
+
+def test_generate_image_chatgpt_web_requires_access_token(client, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "IMAGE_PROVIDER", "chatgpt_web")
+
+    response = client.post(
+        "/v1/images/generations",
+        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
+        json={"prompt": "draw a cat", "model": "gpt-image-2"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"]["code"] == "provider_auth_failed"
+
+
+def test_generate_image_chatgpt_web_uses_request_access_token(client, monkeypatch):
+    from app.core.config import settings
+    from app.providers.chatgpt_web import ChatGPTWebProvider
+    monkeypatch.setattr(settings, "IMAGE_PROVIDER", "chatgpt_web")
+
+    async def _generate_image(_self, *_args, **_kwargs):
+        return {
+            "created": 1,
+            "data": [{"b64_json": base64.b64encode(get_fallback_png()).decode()}],
+        }
+
+    monkeypatch.setattr(ChatGPTWebProvider, "generate_image", _generate_image, raising=True)
+
+    response = client.post(
+        "/v1/images/generations",
+        headers={
+            "Authorization": "Bearer test-api-key",
+            "X-User-Id": "user123",
+            "X-ChatGPT-Access-Token": "valid_token_value_longer_than_10_chars",
+        },
+        json={"prompt": "draw a cat", "model": "gpt-image-2"},
+    )
+    assert response.status_code == 200
+    decoded = base64.b64decode(response.json()["data"][0]["b64_json"])
+    assert decoded == get_fallback_png()
 
 
 def test_edit_image_mock(client):
@@ -193,7 +249,11 @@ def test_edit_image_chatgpt_web_auth_error(client, monkeypatch):
 
     response = client.post(
         "/v1/images/edits",
-        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
+        headers={
+            "Authorization": "Bearer test-api-key",
+            "X-User-Id": "user123",
+            "X-ChatGPT-Access-Token": "valid_token_value_longer_than_10_chars",
+        },
         files={"image": ("image.png", img_bytes, "image/png")},
         data={"prompt": "draw a cat", "model": "gpt-image-2"},
     )
@@ -231,8 +291,9 @@ def test_logging_filter_redaction():
         exc_info=None
     )
     filt.filter(record_dict)
-    assert record_dict.msg["access_token"] == "[REDACTED]"
-    assert record_dict.msg["other"] == "public_data"
+    record_dict_msg = cast(dict[str, str], record_dict.msg)
+    assert record_dict_msg["access_token"] == "[REDACTED]"
+    assert record_dict_msg["other"] == "public_data"
 
     # Test dict in args filtering
     record_args = logging.LogRecord(
@@ -245,6 +306,8 @@ def test_logging_filter_redaction():
         exc_info=None
     )
     filt.filter(record_args)
-    assert record_args.args["token"] == "[REDACTED]"
-    assert record_args.args["nested"]["auth"] == "[REDACTED]"
+    record_args_msg = cast(dict[str, Any], record_args.args)
+    nested_args_msg = cast(dict[str, str], record_args_msg["nested"])
+    assert record_args_msg["token"] == "[REDACTED]"
+    assert nested_args_msg["auth"] == "[REDACTED]"
 

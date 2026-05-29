@@ -1,3 +1,4 @@
+from typing import Any, cast
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -20,10 +21,10 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, cast(Any, rate_limit_exceeded_handler))
 
 # Custom ASGI Middleware to check Content-Length early
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from starlette.responses import Response
 
 class ContentTooLargeError(Exception):
@@ -32,6 +33,7 @@ class ContentTooLargeError(Exception):
 
 @app.exception_handler(ContentTooLargeError)
 async def content_too_large_handler(request, exc: ContentTooLargeError):
+    _ = (request, exc)
     return Response("Request Entity Too Large", status_code=413)
 
 class ContentLengthLimitMiddleware:
@@ -59,7 +61,7 @@ class ContentLengthLimitMiddleware:
             body_too_large = False
             response_started = False
 
-            async def wrapped_receive() -> dict:
+            async def wrapped_receive() -> Message:
                 nonlocal total_read, body_too_large
                 if body_too_large:
                     raise ContentTooLargeError()
@@ -73,7 +75,7 @@ class ContentLengthLimitMiddleware:
                         raise ContentTooLargeError()
                 return message
 
-            async def wrapped_send(message: dict) -> None:
+            async def wrapped_send(message: Message) -> None:
                 nonlocal response_started
                 if message["type"] == "http.response.start":
                     response_started = True
@@ -100,7 +102,7 @@ app.add_middleware(
     allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "X-User-Id"],
+    allow_headers=["Authorization", "Content-Type", "X-User-Id", "X-ChatGPT-Access-Token"],
     max_age=86400,
 )
 
