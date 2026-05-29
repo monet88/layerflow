@@ -135,8 +135,8 @@ export function ChatGptLoginModal({ onClose, onAuthorized }: ChatGptLoginModalPr
         <div style={{ display: 'grid', gap: 4 }}>
           <div style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>Sign in to ChatGPT</div>
           <div style={{ color: '#bdbdbd', fontSize: 11 }}>
-            Enable Device code authorization for Codex in ChatGPT Security settings, then
-            enter the code below.
+            In ChatGPT, open Settings → Security and enable Device Code authorization for Codex,
+            then enter this code. If authorization fails, enable that toggle and retry.
           </div>
         </div>
 

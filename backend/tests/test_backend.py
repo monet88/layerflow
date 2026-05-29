@@ -2,6 +2,8 @@ import base64
 from io import BytesIO
 from PIL import Image
 
+from app.providers.mock_provider import get_fallback_png
+
 def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
@@ -90,6 +92,38 @@ def test_edit_image_no_session(client, monkeypatch):
     assert response.status_code == 401
     detail = response.json()["detail"]
     assert detail["code"] == "provider_auth_failed"
+
+def test_generate_image_mock(client):
+    response = client.post(
+        "/v1/images/generations",
+        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
+        json={"prompt": "draw a cat", "model": "gpt-image-2"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "data" in data
+    assert len(data["data"]) == 1
+    decoded = base64.b64decode(data["data"][0]["b64_json"])
+    assert decoded == get_fallback_png()
+
+
+def test_generate_image_rejects_invalid_payload(client):
+    headers = {"Authorization": "Bearer test-api-key", "X-User-Id": "user123"}
+    invalid_payloads = [
+        {"prompt": "", "model": "gpt-image-2"},
+        {"prompt": "draw a cat", "model": "unsupported"},
+        {"prompt": "draw a cat", "model": "gpt-image-2", "n": 2},
+        {"prompt": "draw a cat", "model": "gpt-image-2", "size": "4096x4096"},
+    ]
+
+    for payload in invalid_payloads:
+        response = client.post(
+            "/v1/images/generations",
+            headers=headers,
+            json=payload,
+        )
+        assert response.status_code == 422
+
 
 def test_edit_image_mock(client):
     img_io = BytesIO()

@@ -3,7 +3,7 @@
 // Single-flight lock prevents concurrent executeAsModal collisions (RT7).
 
 import { exportDocumentRegion } from '../photoshop/export-image';
-import { placeResultAsSmartObject } from '../photoshop/place-result';
+import { placeResultAsSmartObject, type PlaceOptions } from '../photoshop/place-result';
 import { DocInfo, getDocumentInfo } from '../photoshop/document-utils';
 import {
   expandRectForInpaintContext,
@@ -60,17 +60,30 @@ export class GenerationInProgressError extends Error {
   }
 }
 
+export type PlacementRetryOptions = Omit<PlaceOptions, 'pngBytes'>;
+
 export interface PlacementErrorPayload {
   cachedBytes: Uint8Array;
+  placementOptions: PlacementRetryOptions;
 }
 
 export class PlacementError extends Error {
   readonly cachedBytes: Uint8Array;
-  constructor(message: string, cachedBytes: Uint8Array) {
+  readonly placementOptions: PlacementRetryOptions;
+
+  constructor(message: string, cachedBytes: Uint8Array, placementOptions: PlacementRetryOptions) {
     super(message);
     this.name = 'PlacementError';
     this.cachedBytes = cachedBytes;
+    this.placementOptions = placementOptions;
   }
+}
+
+export async function retryPlacement(payload: PlacementErrorPayload): Promise<void> {
+  await placeResultAsSmartObject({
+    pngBytes: payload.cachedBytes,
+    ...payload.placementOptions,
+  });
 }
 
 let isGenerating = false;
@@ -185,7 +198,11 @@ export async function runGenerate(opts: PipelineOptions): Promise<void> {
       ? referenceImages?.filter((b) => b && b.length > 0)
       : undefined;
 
-    emitProgress(onProgress, 'generating', 30, 'Generating image...');
+    const generateMessage =
+      providerId === 'chatgpt-backend'
+        ? 'Waiting for ChatGPT GPT Image 2 (this may take 2+ minutes)...'
+        : 'Generating image...';
+    emitProgress(onProgress, 'generating', 30, generateMessage);
     let results: ResultItem[];
     try {
       results = await provider.generate({
@@ -201,7 +218,7 @@ export async function runGenerate(opts: PipelineOptions): Promise<void> {
     }
     checkSignal(signal);
 
-    emitProgress(onProgress, 'generating', 75, 'Processing result...');
+    emitProgress(onProgress, 'generating', 75, 'Preparing generated image...');
     results = await resolveImageUrls(results);
     if (!results[0]?.pngBytes?.length) {
       throw new Error('Provider returned empty image data.');
@@ -217,16 +234,20 @@ export async function runGenerate(opts: PipelineOptions): Promise<void> {
       width: docInfo.width,
       height: docInfo.height,
     };
+    const placementOptions: PlacementRetryOptions = {
+      targetRect,
+      layerName: `InpaintKit: ${prompt.slice(0, 40)}`,
+    };
     try {
       await placeResultAsSmartObject({
         pngBytes: generatedBytes,
-        targetRect,
-        layerName: `InpaintKit: ${prompt.slice(0, 40)}`,
+        ...placementOptions,
       });
     } catch (e) {
       throw new PlacementError(
-        `Placement failed: ${(e as Error).message}. The generated image is cached — retry placement or save to disk.`,
+        `Placement failed: ${(e as Error).message}. The generated image is cached — retry placement without paying for another generation.`,
         generatedBytes,
+        placementOptions,
       );
     }
 
@@ -297,7 +318,7 @@ export async function runInpaint(opts: PipelineOptions): Promise<void> {
 
     const uploadMessage =
       providerId === 'chatgpt-backend'
-        ? 'Uploading image to GPT Image 2 (this may take 2+ minutes)...'
+        ? 'Sending selection to ChatGPT backend...'
         : 'Uploading to AI...';
     emitProgress(onProgress, 'uploading', 45, uploadMessage);
     let results: ResultItem[];
@@ -319,7 +340,14 @@ export async function runInpaint(opts: PipelineOptions): Promise<void> {
     }
     checkSignal(signal);
 
-    emitProgress(onProgress, 'generating', 80, 'Processing result...');
+    emitProgress(
+      onProgress,
+      'generating',
+      80,
+      providerId === 'chatgpt-backend'
+        ? 'Preparing ChatGPT result for Photoshop...'
+        : 'Processing result...',
+    );
     results = await resolveImageUrls(results);
     if (!results[0]?.pngBytes?.length) {
       throw new Error('Provider returned empty image data.');
@@ -333,21 +361,25 @@ export async function runInpaint(opts: PipelineOptions): Promise<void> {
       expandedBounds.width,
       expandedBounds.height,
     );
+    const placementOptions: PlacementRetryOptions = {
+      targetRect: expandedBounds,
+      maskData: {
+        data: placementMask,
+        width: expandedBounds.width,
+        height: expandedBounds.height,
+      },
+      layerName: `InpaintKit: ${prompt.slice(0, 40)}`,
+    };
     try {
       await placeResultAsSmartObject({
         pngBytes: inpaintedBytes,
-        targetRect: expandedBounds,
-        maskData: {
-          data: placementMask,
-          width: expandedBounds.width,
-          height: expandedBounds.height,
-        },
-        layerName: `InpaintKit: ${prompt.slice(0, 40)}`,
+        ...placementOptions,
       });
     } catch (e) {
       throw new PlacementError(
-        `Placement failed: ${(e as Error).message}. The inpainted image is cached — retry placement or save to disk.`,
+        `Placement failed: ${(e as Error).message}. The inpainted image is cached — retry placement without paying for another generation.`,
         inpaintedBytes,
+        placementOptions,
       );
     }
 

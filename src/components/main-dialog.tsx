@@ -6,16 +6,18 @@ import '@spectrum-web-components/divider/sp-divider.js';
 import { ModelSelector, type ModelValue } from './model-selector';
 import { PromptInput } from './prompt-input';
 import { ReferenceImages } from './reference-images';
-import { getModelDefinition } from '../providers/model-registry';
-import type { MainDialogState, ReferenceImage } from '../types/ui-state';
+import { getModelDefinition, listModels } from '../providers/model-registry';
+import type { GenerationMode, MainDialogState, ReferenceImage } from '../types/ui-state';
 import { getRecentPrompts, type RecentPrompt } from '../storage/settings-storage';
 
 const REFERENCE_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp'];
 
 interface MainDialogProps {
-  mode: 'generate' | 'inpaint';
+  mode: GenerationMode;
   error?: string | null;
+  onModeChange: (mode: GenerationMode) => void;
   onDismissError?: () => void;
+  onRetryPlacement?: () => void;
   onGenerate: (state: MainDialogState) => void;
   onSettings: () => void;
   onCancel: () => void;
@@ -24,7 +26,9 @@ interface MainDialogProps {
 export function MainDialog({
   mode,
   error,
+  onModeChange,
   onDismissError,
+  onRetryPlacement,
   onGenerate,
   onSettings,
   onCancel,
@@ -34,15 +38,19 @@ export function MainDialog({
   const [recentPrompts, setRecentPrompts] = useState<RecentPrompt[]>([]);
   const [refImages, setRefImages] = useState<ReferenceImage[]>([]);
 
-  const effectiveMode =
-    mode === 'inpaint' || !getModelDefinition(model).capabilities.includes('generate')
-      ? 'inpaint'
-      : 'generate';
-  const actionLabel = effectiveMode === 'generate' ? 'Generate' : 'Inpaint Selection';
+  const selectedModel = getModelDefinition(model);
+  const canRunSelectedMode = selectedModel.capabilities.includes(mode);
+  const actionLabel = mode === 'generate' ? 'Generate' : 'Inpaint Selection';
 
   useEffect(() => {
     setRecentPrompts(getRecentPrompts());
   }, []);
+
+  useEffect(() => {
+    if (canRunSelectedMode) return;
+    const nextModel = listModels().find((item) => item.capabilities.includes(mode));
+    if (nextModel) setModel(nextModel.id);
+  }, [canRunSelectedMode, mode]);
 
   const handleGenerate = () => {
     if (!prompt.trim()) return;
@@ -77,7 +85,7 @@ export function MainDialog({
         }}
       >
         <h3 style={{ margin: 0, color: '#fff', fontSize: 14 }}>
-          {effectiveMode === 'generate' ? 'Generate Image' : 'Inpaint Selection'}
+          {mode === 'generate' ? 'Generate Image' : 'Inpaint Selection'}
         </h3>
         <sp-action-button size="s" onClick={onSettings} title="Settings">
           ⚙
@@ -92,25 +100,66 @@ export function MainDialog({
             padding: '8px 12px',
             borderRadius: 4,
             fontSize: 12,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: 'grid',
             gap: 8,
           }}
         >
-          <span style={{ flex: 1 }}>{error}</span>
-          {onDismissError && (
-            <sp-action-button size="s" onClick={onDismissError} title="Dismiss">
-              ✕
-            </sp-action-button>
+          <span>{error}</span>
+          {onRetryPlacement && (
+            <span style={{ color: '#d6d6d6' }}>
+              Image is cached. Retry placement without rerunning generation.
+            </span>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            {onRetryPlacement && (
+              <sp-button size="s" variant="secondary" onClick={onRetryPlacement}>
+                Retry Placement
+              </sp-button>
+            )}
+            {onDismissError && (
+              <sp-action-button size="s" onClick={onDismissError} title="Dismiss">
+                ✕
+              </sp-action-button>
+            )}
+          </div>
         </div>
       )}
 
-      <ModelSelector value={model} onChange={setModel} />
-      {effectiveMode === 'inpaint' && (
+      <div>
+        <div className="section-label">Mode</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <sp-button
+            variant={mode === 'generate' ? 'cta' : 'secondary'}
+            onClick={() => onModeChange('generate')}
+          >
+            Generate
+          </sp-button>
+          <sp-button
+            variant={mode === 'inpaint' ? 'cta' : 'secondary'}
+            onClick={() => onModeChange('inpaint')}
+          >
+            Inpaint
+          </sp-button>
+        </div>
+        <div style={{ fontSize: 11, color: '#9e9e9e', marginTop: 6 }}>
+          Generate fills the canvas. Inpaint edits the current Photoshop selection.
+        </div>
+      </div>
+
+      <ModelSelector value={model} onChange={setModel} capability={mode} />
+      {!canRunSelectedMode && (
+        <div style={{ fontSize: 11, color: '#ef5350' }}>
+          Pick a model that supports {mode}.
+        </div>
+      )}
+      {mode === 'inpaint' && (
         <div style={{ fontSize: 11, color: '#9e9e9e' }}>
-          This model edits the current Photoshop selection and does not support text-only generate.
+          Make a selection in Photoshop before running Inpaint.
+        </div>
+      )}
+      {selectedModel.providerId === 'chatgpt-backend' && (
+        <div style={{ fontSize: 11, color: '#9e9e9e' }}>
+          ChatGPT {mode} may take 2+ minutes and requires the backend session to be connected.
         </div>
       )}
       <sp-divider size="s"></sp-divider>
@@ -125,7 +174,7 @@ export function MainDialog({
         <sp-button variant="secondary" onClick={onCancel}>
           Cancel
         </sp-button>
-        <sp-button variant="cta" onClick={handleGenerate} disabled={!prompt.trim()}>
+        <sp-button variant="cta" onClick={handleGenerate} disabled={!prompt.trim() || !canRunSelectedMode}>
           {actionLabel}
         </sp-button>
       </div>

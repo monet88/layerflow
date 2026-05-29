@@ -449,6 +449,6 @@ Note: This is the FULL domains list at Phase 9. Equals Phase 1 manifest domains 
 
 ## Next Steps
 
-- Phase 10 (Distribution) depends on Phase 9 completion
+- Phase 11 (ChatGPT demo parity + UX completion) now gates public packaging/distribution
 - Manual integration test with real ChatGPT token after all code compiles
 - Consider UX for "first time setup" flow: Settings → Backend URL → OAuth → Generate

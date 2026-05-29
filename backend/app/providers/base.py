@@ -2,7 +2,19 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 class BaseImageProvider(ABC):
-    """Abstract interface for InpaintKit image edit providers."""
+    """Abstract interface for InpaintKit image providers."""
+
+    @abstractmethod
+    async def generate_image(
+        self,
+        prompt: str,
+        user_id: str,
+        model: str = "gpt-image-2",
+        n: int = 1,
+        size: str = "1024x1024",
+    ) -> Dict[str, Any]:
+        """Generate an image using the specified provider."""
+        pass
 
     @abstractmethod
     async def edit_image(
@@ -15,7 +27,7 @@ class BaseImageProvider(ABC):
         n: int = 1,
         size: str = "1024x1024",
     ) -> Dict[str, Any]:
-        """Generate/edit an image using the specified provider."""
+        """Edit an image using the specified provider."""
         pass
 
     async def close(self) -> None:

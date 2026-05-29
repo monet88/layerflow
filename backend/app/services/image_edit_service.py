@@ -28,6 +28,26 @@ class ImageEditService:
         else:
             raise ValueError(f"Unknown image provider: {settings.IMAGE_PROVIDER}")
 
+    async def generate_image(
+        self,
+        prompt: str,
+        user_id: str,
+        model: str = "gpt-image-2",
+        n: int = 1,
+        size: str = "1024x1024",
+    ) -> Dict[str, Any]:
+        provider = self.get_provider(user_id)
+        try:
+            return await provider.generate_image(
+                prompt=prompt,
+                user_id=user_id,
+                model=model,
+                n=n,
+                size=size,
+            )
+        finally:
+            await provider.close()
+
     async def edit_image(
         self,
         image_bytes: bytes,

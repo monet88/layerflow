@@ -235,8 +235,9 @@ export function SettingsDialog({ onClose }: SettingsDialogProps) {
             ></sp-textfield>
           </div>
           <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>
-            ChatGPT images are sent to your backend as uploaded files. Allowed origins:{' '}
-            {SUPPORTED_BACKEND_ORIGINS.join(', ')}.
+            ChatGPT generate/inpaint uses your backend and a ChatGPT Device Code session.
+            Before signing in, enable Device Code authorization for Codex in ChatGPT Security Settings.
+            Allowed origins: {SUPPORTED_BACKEND_ORIGINS.join(', ')}.
           </p>
           <ConnectionStatus
             status={chatGptStatus}

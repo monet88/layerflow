@@ -163,11 +163,27 @@ export class ChatGPTBackendProvider implements Provider {
     }
   }
 
-  async generate(_options: GenerateOptions): Promise<ResultItem[]> {
-    throw new ProviderError(
-      'ChatGPT backend only supports selection-based editing. Make a selection and run Inpaint.',
-      'chatgpt-backend',
-    );
+  async generate(options: GenerateOptions): Promise<ResultItem[]> {
+    try {
+      const tokens = await getValidToken(options.signal);
+      try {
+        return await this.sendGenerateRequest(options, tokens.userId);
+      } catch (error) {
+        if (error instanceof BackendRequestError && shouldRepairSession(error)) {
+          await this.registerSession(tokens, options.signal);
+          return await this.sendGenerateRequest(options, tokens.userId);
+        }
+        throw error;
+      }
+    } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        throw new ProviderError(error.message, this.id);
+      }
+      if (error instanceof BackendRequestError) {
+        throw await this.toProviderError(error, true);
+      }
+      throw error;
+    }
   }
 
   async inpaint(options: InpaintOptions): Promise<ResultItem[]> {
@@ -191,6 +207,37 @@ export class ChatGPTBackendProvider implements Provider {
       }
       throw error;
     }
+  }
+
+  private async sendGenerateRequest(options: GenerateOptions, userId: string): Promise<ResultItem[]> {
+    const res = await request(`${this.baseUrl}/v1/images/generations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        'X-User-Id': userId,
+      },
+      body: JSON.stringify({
+        prompt: options.prompt,
+        model: options.model,
+        n: 1,
+        size: `${options.width ?? 1024}x${options.height ?? options.width ?? 1024}`,
+      }),
+      signal: options.signal,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      retryOnFetchFailure: true,
+    });
+    if (!res.ok) {
+      throw await readBackendError(res);
+    }
+
+    const raw = await res.json();
+    const parsed = assertImageEditsResponse(raw);
+    return parsed.data.map((item) => ({
+      pngBytes: item.b64_json ? base64ToBytes(item.b64_json) : new Uint8Array(0),
+      imageUrl: item.url,
+      revisedPrompt: item.revised_prompt,
+    }));
   }
 
   private async sendEditRequest(options: InpaintOptions, userId: string): Promise<ResultItem[]> {
@@ -243,7 +290,7 @@ export class ChatGPTBackendProvider implements Provider {
     }
     if (error.code === 'provider_reconnect_required') {
       return new ProviderError(
-        'ChatGPT requires browser re-authorization. Open Settings and sign in again.',
+        'ChatGPT requires re-authorization. In Settings, confirm Device Code authorization for Codex is enabled, then sign in again.',
         this.id,
         error.status,
         error.bodyPreview,

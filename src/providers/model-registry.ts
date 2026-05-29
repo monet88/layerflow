@@ -71,8 +71,9 @@ const REGISTRY: Record<string, ModelDefinition> = {
     id: 'gpt-image-2-chatgpt',
     label: 'GPT Image 2 (ChatGPT) — subscription',
     providerId: 'chatgpt-backend',
-    capabilities: ['inpaint'],
+    capabilities: ['generate', 'inpaint'],
     endpointByCapability: {
+      generate: 'gpt-image-2',
       inpaint: 'gpt-image-2',
     },
     resolutions: [1024, 1536, 2048],
