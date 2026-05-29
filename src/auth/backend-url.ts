@@ -29,6 +29,12 @@ export function validateBackendUrl(raw: string): URL {
   if (parsed.username || parsed.password) {
     throw new InvalidBackendUrlError('Backend URL must not contain credentials.');
   }
+  if (parsed.pathname !== '/') {
+    throw new InvalidBackendUrlError('Backend URL must not contain a path.');
+  }
+  if (parsed.search) {
+    throw new InvalidBackendUrlError('Backend URL must not contain query parameters.');
+  }
   if (parsed.hash) {
     throw new InvalidBackendUrlError('Backend URL must not contain a fragment.');
   }
@@ -42,6 +48,5 @@ export function validateBackendUrl(raw: string): URL {
 }
 
 export function normalizeBackendUrl(raw: string): string {
-  const parsed = validateBackendUrl(raw);
-  return parsed.href.replace(/\/$/, '');
+  return validateBackendUrl(raw).origin;
 }
