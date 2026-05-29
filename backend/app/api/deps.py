@@ -43,3 +43,17 @@ def get_user_id(x_user_id: str = Header(..., alias="X-User-Id")) -> str:
             detail="X-User-Id must be 1-64 alphanumeric characters, underscores, or hyphens",
         )
     return user_id
+
+
+def get_chatgpt_access_token(
+    x_chatgpt_access_token: Optional[str] = Header(None, alias="X-ChatGPT-Access-Token"),
+) -> Optional[str]:
+    token = (x_chatgpt_access_token or "").strip()
+    if not token:
+        return None
+    if len(token) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="X-ChatGPT-Access-Token must be at least 10 characters",
+        )
+    return token

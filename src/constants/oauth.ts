@@ -1,0 +1,10 @@
+export const AUTH_BASE_URL = 'https://auth.openai.com';
+export const DEVICE_AUTH_USERCODE_URL = `${AUTH_BASE_URL}/api/accounts/deviceauth/usercode`;
+export const DEVICE_AUTH_TOKEN_URL = `${AUTH_BASE_URL}/api/accounts/deviceauth/token`;
+export const OAUTH_TOKEN_URL = `${AUTH_BASE_URL}/oauth/token`;
+export const DEVICE_VERIFICATION_URL = `${AUTH_BASE_URL}/codex/device`;
+export const DEVICE_REDIRECT_URI = `${AUTH_BASE_URL}/deviceauth/callback`;
+export const CODEX_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+export const DEVICE_AUTH_INTERVAL_PADDING_SECONDS = 3;
+export const DEVICE_AUTH_MIN_POLL_SECONDS = 8;
+export const REFRESH_SCOPE = 'openid profile email';

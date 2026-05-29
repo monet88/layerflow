@@ -28,7 +28,7 @@ def _upload_image(self, image: str, file_name: str = "image.png") -> Dict[str, A
             
     img = Image.open(BytesIO(data))
     width, height = img.size
-    mime_type = Image.MIME.get(img.format, "image/png")
+    mime_type = Image.MIME.get(str(img.format or ""), "image/png")
     path = "/backend-api/files"
     response = self.session.post(
         self.base_url + path,

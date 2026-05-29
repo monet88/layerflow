@@ -13,11 +13,10 @@ export interface GenerateOptions {
 }
 
 export interface InpaintOptions extends GenerateOptions {
-  // PNG bytes of the source region (with context padding, already cropped/composited).
   sourceImage: Uint8Array;
-  // RGBA PNG; alpha=0 means "edit this pixel" (internal convention).
-  // Provider implementations are responsible for converting to provider-specific encoding.
   maskImage: Uint8Array;
+  maskWidth?: number;
+  maskHeight?: number;
 }
 
 export interface ResultItem {

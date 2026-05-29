@@ -14,7 +14,7 @@ import io
 import json
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NoReturn, Optional
 
 from PIL import Image
 
@@ -34,7 +34,7 @@ from chatgpt_core.errors import (
     UpstreamHTTPError,
 )
 from chatgpt_core.sse_parser import iter_sse_payloads
-from app.core.url_security import validate_and_resolve_url, is_safe_url
+from app.core.url_security import validate_and_resolve_url
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,34 @@ class ChatGPTWebProvider(BaseImageProvider):
             url_validator=validate_and_resolve_url,
         )
 
+    async def generate_image(
+        self,
+        prompt: str,
+        user_id: str,
+        model: str = "gpt-image-2",
+        n: int = 1,
+        size: str = "1024x1024",
+    ) -> Dict[str, Any]:
+        _ = user_id
+        if not prompt or not prompt.strip():
+            raise ValueError("prompt is required")
+        if size != "1024x1024":
+            raise ValueError("ChatGPT Web provider only supports size=1024x1024")
+        if n > 1:
+            raise ValueError(
+                "ChatGPT Web provider does not support n > 1"
+            )
+
+        poll_timeout = float(
+            getattr(settings, "CHATGPT_POLL_TIMEOUT", self.DEFAULT_POLL_TIMEOUT_SECS)
+        )
+        return await asyncio.to_thread(
+            self._run_generate_flow_sync,
+            prompt=prompt.strip(),
+            model=model,
+            poll_timeout=poll_timeout,
+        )
+
     async def edit_image(
         self,
         image_bytes: bytes,
@@ -68,8 +96,11 @@ class ChatGPTWebProvider(BaseImageProvider):
         n: int = 1,
         size: str = "1024x1024",
     ) -> Dict[str, Any]:
+        _ = user_id
         if not prompt or not prompt.strip():
             raise ValueError("prompt is required")
+        if size != "1024x1024":
+            raise ValueError("ChatGPT Web provider only supports size=1024x1024")
         if not image_bytes:
             raise ValueError("image bytes are required")
         if n > 1:
@@ -91,6 +122,23 @@ class ChatGPTWebProvider(BaseImageProvider):
 
     DEFAULT_POLL_TIMEOUT_SECS = 150.0
 
+    def _run_generate_flow_sync(
+        self,
+        prompt: str,
+        model: str,
+        poll_timeout: float = DEFAULT_POLL_TIMEOUT_SECS,
+    ) -> Dict[str, Any]:
+        try:
+            self.api_client._bootstrap()
+            return self._complete_generation_sync(
+                prompt=prompt,
+                model=model,
+                poll_timeout=poll_timeout,
+                references=[],
+            )
+        except Exception as exc:
+            self._raise_provider_error(exc, poll_timeout, "image generation")
+
     def _run_flow_sync(
         self,
         image_bytes: bytes,
@@ -99,48 +147,65 @@ class ChatGPTWebProvider(BaseImageProvider):
         model: str,
         poll_timeout: float = DEFAULT_POLL_TIMEOUT_SECS,
     ) -> Dict[str, Any]:
-        """Blocking ChatGPT pipeline. Must be called via asyncio.to_thread."""
         try:
             self.api_client._bootstrap()
-
             composed = self._composite_mask(image_bytes, mask_bytes)
             image_b64 = base64.b64encode(composed).decode("ascii")
-
             upload = self.api_client._upload_image(image_b64, file_name="source.png")
-            requirements = self.api_client._get_chat_requirements()
-            conduit = self.api_client._prepare_image_conversation(prompt, requirements, model)
-            sse_response = self.api_client._start_image_generation(
-                prompt, requirements, conduit, model, references=[upload]
+            return self._complete_generation_sync(
+                prompt=prompt,
+                model=model,
+                poll_timeout=poll_timeout,
+                references=[upload],
             )
-            conversation_id = self._extract_conversation_id(sse_response)
-            if not conversation_id:
-                raise ProviderError("ChatGPT did not return a conversation id")
-
-            file_ids, sediment_ids = self.api_client._poll_image_results(
-                conversation_id, timeout_secs=poll_timeout
-            )
-            urls = self.api_client._resolve_image_urls(conversation_id, file_ids, sediment_ids)
-            if not urls:
-                raise ProviderError("ChatGPT returned no downloadable image urls")
-
-            png_bytes = self._download_first(urls)
-            return {
-                "created": int(time.time()),
-                "data": [{"b64_json": base64.b64encode(png_bytes).decode("ascii")}],
-            }
-        except ProviderError:
-            raise
-        except InvalidAccessTokenError as exc:
-            raise ProviderAuthError(str(exc)) from exc
-        except ImagePollTimeoutError as exc:
-            raise ProviderTimeoutError(
-                str(exc), timeout_secs=poll_timeout
-            ) from exc
-        except UpstreamHTTPError as exc:
-            self._raise_from_upstream(exc)
         except Exception as exc:
-            logger.exception("ChatGPT provider flow failed")
-            raise ProviderError(f"ChatGPT image edit failed: {exc}") from exc
+            self._raise_provider_error(exc, poll_timeout, "image edit")
+
+    def _complete_generation_sync(
+        self,
+        prompt: str,
+        model: str,
+        poll_timeout: float,
+        references: list[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        requirements = self.api_client._get_chat_requirements()
+        conduit = self.api_client._prepare_image_conversation(prompt, requirements, model)
+        sse_response = self.api_client._start_image_generation(
+            prompt, requirements, conduit, model, references=references
+        )
+        conversation_id = self._extract_conversation_id(sse_response)
+        if not conversation_id:
+            raise ProviderError("ChatGPT did not return a conversation id")
+
+        file_ids, sediment_ids = self.api_client._poll_image_results(
+            conversation_id, timeout_secs=poll_timeout
+        )
+        urls = self.api_client._resolve_image_urls(conversation_id, file_ids, sediment_ids)
+        if not urls:
+            raise ProviderError("ChatGPT returned no downloadable image urls")
+
+        png_bytes = self._download_first(urls)
+        return {
+            "created": int(time.time()),
+            "data": [{"b64_json": base64.b64encode(png_bytes).decode("ascii")}],
+        }
+
+    def _raise_provider_error(
+        self,
+        exc: Exception,
+        poll_timeout: float,
+        operation: str,
+    ) -> NoReturn:
+        if isinstance(exc, ProviderError):
+            raise exc
+        if isinstance(exc, InvalidAccessTokenError):
+            raise ProviderAuthError(str(exc)) from exc
+        if isinstance(exc, ImagePollTimeoutError):
+            raise ProviderTimeoutError(str(exc), timeout_secs=poll_timeout) from exc
+        if isinstance(exc, UpstreamHTTPError):
+            self._raise_from_upstream(exc)
+        logger.exception("ChatGPT provider %s failed", operation)
+        raise ProviderError(f"ChatGPT {operation} failed: {exc}") from exc
 
     _MAX_IMAGE_PIXELS = 4096 * 4096
 
@@ -172,7 +237,7 @@ class ChatGPTWebProvider(BaseImageProvider):
 
         mask = ChatGPTWebProvider._open_image_safe(mask_bytes)
         if mask.size != source.size:
-            mask = mask.resize(source.size, Image.NEAREST)
+            mask = mask.resize(source.size, Image.Resampling.NEAREST)
         alpha = mask.split()[3]
         source.putalpha(alpha)
         buf = io.BytesIO()

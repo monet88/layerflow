@@ -14,6 +14,7 @@ import { bytesToDataUri, detectPngOutputFormat, invertMaskConvention } from '../
 import { checkedRequest, fetchBytes } from '../services/network-client';
 
 const FAL_RUN_BASE = 'https://fal.run';
+const GENERATION_REQUEST_TIMEOUT_MS = 180_000;
 
 interface FalImage {
   url: string;
@@ -187,6 +188,7 @@ export class FalAIProvider implements Provider {
         headers: this.headers(),
         body: JSON.stringify(payload),
         signal: options.signal,
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
       },
       this.id,
     );
@@ -211,6 +213,7 @@ export class FalAIProvider implements Provider {
         headers: this.headers(),
         body: JSON.stringify(payload),
         signal: options.signal,
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
       },
       this.id,
     );
@@ -232,6 +235,7 @@ export class FalAIProvider implements Provider {
         headers: this.headers(),
         body: JSON.stringify(payload),
         signal: options.signal,
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
       },
       this.id,
     );
@@ -264,6 +268,7 @@ export class FalAIProvider implements Provider {
         headers: this.headers(),
         body: JSON.stringify(payload),
         signal: options.signal,
+        timeoutMs: GENERATION_REQUEST_TIMEOUT_MS,
       },
       this.id,
     );

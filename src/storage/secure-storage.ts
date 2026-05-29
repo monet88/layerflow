@@ -2,6 +2,7 @@
 // Stores raw API keys; UI normalizes empty strings to undefined.
 
 import { storage } from 'uxp';
+import type { StoredChatGptTokens } from '../auth/oauth-types';
 import { ProviderCredentials } from '../providers/provider-interface';
 
 const KEYS = {
@@ -9,9 +10,12 @@ const KEYS = {
   REPLICATE: 'inpaintkit.credentials.replicate',
   CHATGPT_BACKEND_URL: 'inpaintkit.credentials.chatgpt-backend-url',
   CHATGPT_BACKEND_API_KEY: 'inpaintkit.credentials.chatgpt-backend-api-key',
+  CHATGPT_TOKENS: 'inpaintkit.credentials.chatgpt-tokens',
 } as const;
 
-type CredentialKey = keyof typeof KEYS;
+const CREDENTIAL_KEYS = ['FALAI', 'REPLICATE', 'CHATGPT_BACKEND_URL', 'CHATGPT_BACKEND_API_KEY'] as const;
+
+type CredentialKey = (typeof CREDENTIAL_KEYS)[number];
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -49,6 +53,36 @@ export async function loadCredentials(): Promise<ProviderCredentials> {
   return { falai, replicate, chatgptBackendUrl, chatgptBackendApiKey };
 }
 
+function isStoredChatGptTokens(value: unknown): value is StoredChatGptTokens {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.accessToken === 'string' &&
+    typeof candidate.refreshToken === 'string' &&
+    typeof candidate.userId === 'string' &&
+    typeof candidate.expiresAt === 'number'
+  );
+}
+
+export async function getChatGPTTokens(): Promise<StoredChatGptTokens | undefined> {
+  const raw = await readKey(KEYS.CHATGPT_TOKENS);
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return isStoredChatGptTokens(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function setChatGPTTokens(tokens: StoredChatGptTokens): Promise<void> {
+  await writeKey(KEYS.CHATGPT_TOKENS, JSON.stringify(tokens));
+}
+
+export async function clearChatGPTTokens(): Promise<void> {
+  await deleteKey(KEYS.CHATGPT_TOKENS);
+}
+
 export async function saveCredential(name: CredentialKey, value: string): Promise<void> {
   if (value === '') {
     await deleteKey(KEYS[name]);
@@ -62,5 +96,7 @@ export async function clearCredential(name: CredentialKey): Promise<void> {
 }
 
 export async function clearAllCredentials(): Promise<void> {
-  await Promise.all((Object.keys(KEYS) as CredentialKey[]).map((k) => clearCredential(k)));
+  await Promise.all(
+    (Object.keys(KEYS) as (keyof typeof KEYS)[]).map((key) => deleteKey(KEYS[key])),
+  );
 }

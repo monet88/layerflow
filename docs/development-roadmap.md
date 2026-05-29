@@ -18,8 +18,8 @@ AI image editing plugin for Adobe Photoshop — inpainting, outpainting, and gen
 │    • Replicate (Nano Banana Pro, Seedream 5 Lite)        │
 │                                                          │
 │  Backend Provider (heavy, 120-150s):                     │
-│    POST backend:8000/v1/images/edits                     │
-│    + access_token from device code OAuth                 │
+│    POST backend:8000/v1/images/generations or /edits    │
+│    + X-User-Id + backend API key after session register  │
 │                                                          │
 └────────────────────────┬─────────────────────────────────┘
                          │
@@ -105,36 +105,37 @@ AI image editing plugin for Adobe Photoshop — inpainting, outpainting, and gen
 
 **Goal**: Add GPT Image 2 via ChatGPT subscription (backend server)  
 **Duration**: 1.5 weeks  
-**Deliverable**: Full ChatGPT OAuth + backend proxy + GPT Image 2 generation
+**Deliverable**: Full ChatGPT OAuth + backend proxy + GPT Image 2 selection-based editing
 
 | Phase | Task | Est. | Status |
 |-------|------|------|--------|
-| 3.1 | Backend MVP (FastAPI scaffold, health, models, Docker) | 3h | pending |
-| 3.2 | Backend auth (per-user session storage, app API key) | 2h | pending |
-| 3.3 | Backend /v1/images/edits endpoint (mock provider) | 2h | pending |
-| 3.4 | Backend ChatGPT Web provider (port chatgpt2api logic) | 6h | pending |
-| 3.5 | Backend tests (pytest, all endpoints) | 2h | pending |
-| 3.6 | Plugin — Device Code OAuth flow (auth.openai.com/codex/device) | 3h | pending |
-| 3.7 | Plugin — OAuth UI (user_code display, polling indicator, status) | 2h | pending |
-| 3.8 | Plugin — Backend provider (POST backend/v1/images/edits, 150s timeout) | 2h | pending |
-| 3.9 | Plugin — Settings update (backend URL config, ChatGPT sign-in section) | 2h | pending |
-| 3.10 | Plugin — Token refresh + auto-reconnect | 2h | pending |
-| 3.11 | End-to-end testing: OAuth → backend → GPT Image 2 → PS layer | 3h | pending |
+| 3.1 | Backend MVP (FastAPI scaffold, health, models, Docker) | 3h | complete |
+| 3.2 | Backend auth (per-user session storage, app API key) | 2h | complete |
+| 3.3 | Backend /v1/images/edits endpoint (mock provider) | 2h | complete |
+| 3.4 | Backend ChatGPT Web provider (port chatgpt2api logic) | 6h | complete |
+| 3.5 | Backend tests (pytest, all endpoints) | 2h | complete |
+| 3.6 | Plugin — Device Code OAuth flow (auth.openai.com/codex/device) | 3h | complete |
+| 3.7 | Plugin — OAuth UI (user_code display, polling indicator, status) | 2h | complete |
+| 3.8 | Plugin — Backend provider (POST backend/v1/images/edits, 150s timeout) | 2h | complete |
+| 3.9 | Plugin — Settings update (backend URL config, ChatGPT sign-in section) | 2h | complete |
+| 3.10 | Plugin — Token refresh + auto-reconnect | 2h | complete |
+| 3.11 | End-to-end testing: OAuth → backend → GPT Image 2 → PS layer | 3h | complete |
 
 **Models available after Sprint 3:**
-- GPT Image 2 (ChatGPT subscription, via backend)
+- GPT Image 2 (ChatGPT subscription, via backend, selection-based editing)
 - All models from Sprint 1-2
 
 ---
 
-### Sprint 4: Polish + Distribution
+### Sprint 4: Demo Parity + Distribution
 
-**Goal**: Production-ready packaging, documentation, edge cases  
-**Duration**: 0.5 week  
-**Deliverable**: .ccx plugin package + Docker image + README
+**Goal**: Close the ChatGPT demo-parity gap, then package/document the product for distribution
+**Duration**: 1 week
+**Deliverable**: ChatGPT blank-canvas generate + explicit Generate/Inpaint mode + stage-aware progress + placement retry recovery + clearer auth UX, then .ccx plugin package + Docker image + README
 
 | Phase | Task | Est. | Status |
 |-------|------|------|--------|
+| 4.0 | ChatGPT demo parity gate (full-canvas generate, explicit mode, richer progress, placement retry, auth copy) | 8h | in-progress |
 | 4.1 | Plugin packaging (.ccx via UXP Developer Tool) | 1h | pending |
 | 4.2 | Backend Docker image (production config, health checks) | 1h | pending |
 | 4.3 | README — plugin install + usage | 1h | pending |
@@ -143,6 +144,8 @@ AI image editing plugin for Adobe Photoshop — inpainting, outpainting, and gen
 | 4.6 | Undo/redo integration cleanup | 1h | pending |
 | 4.7 | Broader PS version testing (24.x, 25.x, 26.x) | 2h | pending |
 | 4.8 | About dialog + version info | 0.5h | pending |
+
+Automated validation for Phase 4.0 is green (`npm run typecheck`, `npm run build`, backend pytest). Manual Photoshop UXP verification for blank-canvas ChatGPT generate and selection-based ChatGPT inpaint is still pending, so distribution work remains blocked.
 
 ---
 
@@ -185,7 +188,7 @@ From InpaintKit's public roadmap + own ideas:
 
 ### Key Technical Decisions
 
-1. fetch + XHR fallback for all network calls (UXP fetch unreliable on large uploads)
+1. XHR-first network client for long POST/uploads; fetch stays for simple requests, and XHR now parses arraybuffer/text/json responses reliably in UXP
 2. doc.saveAs.png() on temp duplicate for image export (handles ICC, compositing)
 3. imaging.getSelection() for mask extraction (feathered/lasso support)
 4. Smart Object via placeEvent batchPlay (non-destructive, editable)

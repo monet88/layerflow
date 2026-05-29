@@ -1,13 +1,13 @@
 ---
 title: "InpaintKit — Photoshop UXP Plugin"
 description: "AI image editing plugin for Photoshop. Multi-provider: fal.ai + Replicate (direct) + GPT Image 2 (via backend server with ChatGPT subscription)"
-status: pending
+status: in-progress
 priority: P1
 effort: 58h
 branch: main
 tags: [uxp, photoshop, ai, react, typescript, falai, replicate, chatgpt, fastapi]
 created: 2026-05-19
-updated: 2026-05-21
+updated: 2026-05-28
 ---
 
 # InpaintKit — Implementation Plan
@@ -26,10 +26,10 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |--------|------|----------|------|--------|
 | 1 | Plugin + fal.ai end-to-end inpainting | 1.5 weeks | 25h | complete |
 | 2 | More models + UX polish | 1 week | 12h | complete |
-| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | in-progress |
-| 4 | Distribution + final polish | 0.5 week | 3h | pending |
+| 3 | ChatGPT backend + GPT Image 2 | 1.5 weeks | 16h | complete |
+| 4 | Demo parity + distribution | 1 week | 11h | in-progress |
 
-**Total estimated effort:** 56h (critical path ~36h with parallel execution)
+**Total estimated effort:** 66h (critical path ~44h with parallel execution)
 
 ## Phase Files
 
@@ -55,13 +55,16 @@ See [/docs/development-roadmap.md](../../docs/development-roadmap.md) for archit
 |---|-------|------|--------|------|
 | 7 | Backend MVP (Fork chatgpt2api) | 5h | complete | [phase-07-backend-mvp.md](./phase-07-backend-mvp.md) |
 | 8 | Backend ChatGPT Provider (Adapt) | 4h | complete | [phase-08-backend-chatgpt-provider.md](./phase-08-backend-chatgpt-provider.md) |
-| 9 | Plugin ChatGPT Integration | 7h | in-progress | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
+| 9 | Plugin ChatGPT Integration | 7h | complete | [phase-09-plugin-chatgpt-integration.md](./phase-09-plugin-chatgpt-integration.md) |
 
-### Sprint 4: Distribution
+### Sprint 4: Demo Parity + Distribution
 
 | # | Phase | Est. | Status | File |
 |---|-------|------|--------|------|
+| 11 | ChatGPT Demo Parity & UX Completion | 8h | in-progress | [phase-11-chatgpt-demo-parity-and-ux-completion.md](./phase-11-chatgpt-demo-parity-and-ux-completion.md) |
 | 10 | Distribution & Packaging | 3h | pending | [phase-10-distribution.md](./phase-10-distribution.md) |
+
+**Note:** Phase 11 was added after implementation review on 2026-05-28 to preserve Phase 9 as the historical integration milestone while tracking remaining demo-parity work explicitly before packaging. Phase 11 automated validation and review have passed; Photoshop UXP manual demo verification remains before Phase 10 distribution.
 
 ## Architecture (Hybrid)
 
@@ -93,7 +96,7 @@ Sprint 3:  Phase 7 → Phase 8 ─┐
            Phase 5 ─────────────┼→ Phase 9
            Phase 6 ─────────────┘
 
-Sprint 4:  Phase 9 → Phase 10
+Sprint 4:  Phase 9 → Phase 11 → Phase 10
 ```
 
 Sprint 1 phases 2/3/4 can run in parallel after Phase 1.
@@ -334,7 +337,7 @@ Sprint 3 backend (7-8) can start parallel with Sprint 2, but Phase 9 requires Ph
 - YAML frontmatter: all 10 phases now have consistent YAML frontmatter with sprint, effort, depends_on
 - depends_on: Phase 2,3 → [phase-01]; Phase 5 → [phase-02, phase-03, phase-04]
 - Storage modules: Phase 4 now creates `secure-storage.ts` and `settings-storage.ts`
-- Domains: P1 = 8 domains (no chatgpt.com); P9 = P1 + localhost:8000
+- Domains: P1 = 8 domains (no chatgpt.com); P9 = P1 + loopback backend origins (`http://localhost:8000`, `http://127.0.0.1:8000`, `http://[::1]:8000`)
 
 #### Impact on Phases
 <!-- Updated: Validation Session 3 - YAML frontmatter + dependency graph -->

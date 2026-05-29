@@ -139,7 +139,7 @@ When implementing a phase, update its frontmatter `status` to `complete` and upd
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **layerflow** (1910 symbols, 3066 relationships, 94 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **layerflow** (2582 symbols, 4364 relationships, 188 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

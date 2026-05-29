@@ -67,6 +67,20 @@ const REGISTRY: Record<string, ModelDefinition> = {
     costHint: '$0.08/img',
     supportsReferenceImages: true,
   },
+  'gpt-image-2-chatgpt': {
+    id: 'gpt-image-2-chatgpt',
+    label: 'GPT Image 2 (ChatGPT) — subscription',
+    providerId: 'chatgpt-backend',
+    capabilities: ['generate', 'inpaint'],
+    endpointByCapability: {
+      generate: 'gpt-image-2',
+      inpaint: 'gpt-image-2',
+    },
+    resolutions: [1024],
+    defaultResolution: 1024,
+    costHint: 'ChatGPT sub',
+    supportsReferenceImages: false,
+  },
   'nano-banana-pro': {
     id: 'nano-banana-pro',
     label: 'Nano Banana Pro (Replicate)',

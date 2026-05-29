@@ -4,7 +4,7 @@ sprint: 4
 status: pending
 priority: P2
 effort: 3h
-depends_on: [phase-09]
+depends_on: [phase-09, phase-11]
 ---
 
 # Phase 10: Distribution and Packaging
@@ -16,7 +16,7 @@ depends_on: [phase-09]
 
 ## Overview
 
-Package the plugin as .ccx for distribution and the backend as a Docker image. Write user-facing documentation covering both plugin installation and backend setup.
+Package the plugin as .ccx for distribution and the backend as a Docker image after the ChatGPT demo-parity phase passes. Write user-facing documentation covering both plugin installation and backend setup.
 
 ## Requirements
 

@@ -26,6 +26,7 @@ import { checkedRequest, request } from '../services/network-client';
 const REPLICATE_API = 'https://api.replicate.com/v1';
 const POLL_INTERVAL_MS = 2_000;
 const MAX_POLL_TIME_MS = 120_000;
+const PREDICTION_CREATE_TIMEOUT_MS = 180_000;
 const DATA_URI_MAX_BYTES = 256 * 1024;
 
 interface ReplicatePrediction {
@@ -162,6 +163,7 @@ export class ReplicateProvider implements Provider {
         headers: this.headers({ Prefer: 'wait' }),
         body: JSON.stringify({ input }),
         signal,
+        timeoutMs: PREDICTION_CREATE_TIMEOUT_MS,
       },
       this.id,
     );

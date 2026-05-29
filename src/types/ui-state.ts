@@ -1,6 +1,7 @@
 import type { RecentPrompt } from '../storage/settings-storage';
 
 export type ActiveDialog = 'main' | 'settings' | 'progress' | null;
+export type GenerationMode = 'generate' | 'inpaint';
 export type ProviderId = 'falai' | 'replicate' | 'chatgpt-backend';
 
 // A reference image picked from disk: filename for display + raw PNG/JPG bytes for upload.
