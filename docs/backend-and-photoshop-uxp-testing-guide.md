@@ -28,7 +28,7 @@ PYTHONPATH=backend backend/venv/bin/python -m pytest backend/tests
 Expected result:
 
 - All tests pass.
-- Current Phase 11 baseline: `65 passed`.
+- Current automated baseline after frontend/backend test expansion: `71 passed`.
 - A Starlette `httpx` deprecation warning is acceptable unless it becomes a failure.
 
 ### Run Targeted Backend Tests
@@ -87,11 +87,26 @@ Expected smoke result:
 - `/v1/models` returns `gpt-image-2`.
 - `/v1/images/generations` returns a `data` array with image payload when `IMAGE_PROVIDER=mock`.
 
+## Frontend Automated Tests
+
+Run the frontend unit/component suite:
+
+```bash
+npm test -- --run
+```
+
+Expected result:
+
+- All Vitest suites pass.
+- Current automated baseline: `9 passed`.
+- Tests run in jsdom and mock Spectrum Web Component side-effect imports; they do not replace Photoshop UXP manual verification.
+
 ## Frontend Build Checks
 
 Run these before loading the plugin manually:
 
 ```bash
+npm test -- --run
 npm run typecheck
 npm run build
 ```

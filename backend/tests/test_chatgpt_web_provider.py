@@ -32,6 +32,18 @@ def _provider() -> ChatGPTWebProvider:
     return ChatGPTWebProvider(access_token="x" * 32, proxy=None)
 
 
+class _ClosableSSE:
+    def __init__(self, lines):
+        self._lines = lines
+        self.closed = False
+
+    def iter_lines(self):
+        yield from self._lines
+
+    def close(self):
+        self.closed = True
+
+
 def test_constructor_rejects_blank_token():
     with pytest.raises(ProviderAuthError):
         ChatGPTWebProvider(access_token="   ", proxy=None)
@@ -48,6 +60,27 @@ def test_edit_image_rejects_empty_prompt():
                 user_id="u1",
             )
         )
+
+
+def test_extract_conversation_id_reads_nested_payload_and_closes_stream():
+    sse = _ClosableSSE([
+        b'data: {"v": {"conversation_id": "conversation-123"}}',
+        b"data: [DONE]",
+    ])
+
+    assert ChatGPTWebProvider._extract_conversation_id(sse) == "conversation-123"
+    assert sse.closed is True
+
+
+def test_extract_conversation_id_ignores_malformed_payloads_and_closes_stream():
+    sse = _ClosableSSE([
+        b"data: not-json",
+        b'data: {"message": "no id here"}',
+        b"data: [DONE]",
+    ])
+
+    assert ChatGPTWebProvider._extract_conversation_id(sse) == ""
+    assert sse.closed is True
 
 
 def test_upstream_401_maps_to_provider_auth_error(monkeypatch):
