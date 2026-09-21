@@ -215,6 +215,24 @@ def test_edit_image_size_exceeded(client):
     assert response.status_code == 413
     assert "exceeds maximum allowed size" in response.json()["detail"]
 
+def test_edit_image_mask_size_exceeded(client):
+    img_io = BytesIO()
+    Image.new("RGBA", (10, 10), (255, 0, 0, 255)).save(img_io, format="PNG")
+    img_bytes = img_io.getvalue()
+    huge_mask = b"\x00" * (1024 * 1024 + 1000)
+
+    response = client.post(
+        "/v1/images/edits",
+        headers={"Authorization": "Bearer test-api-key", "X-User-Id": "user123"},
+        files={
+            "image": ("image.png", img_bytes, "image/png"),
+            "mask": ("mask.png", huge_mask, "image/png"),
+        },
+        data={"prompt": "huge mask", "model": "gpt-image-2"}
+    )
+    assert response.status_code == 413
+    assert "exceeds maximum allowed size" in response.json()["detail"]
+
 def test_edit_image_chatgpt_web_auth_error(client, monkeypatch):
     """Phase 8: with a connected session, provider runs and surfaces upstream
     401 as ``provider_auth_failed``. We stub the chatgpt_core flow so no real
@@ -310,4 +328,3 @@ def test_logging_filter_redaction():
     nested_args_msg = cast(dict[str, str], record_args_msg["nested"])
     assert record_args_msg["token"] == "[REDACTED]"
     assert nested_args_msg["auth"] == "[REDACTED]"
-
